@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 
 class Conversation(BaseModel):
     conversation_id: Optional[int] = Field(default=None)
-    user_id: Optional[User] = Field(default=None)
+    user_id: Optional[List[User]] = Field(default=None)
     task_id: Optional[Task] = Field(default=None)
     title: str = Field(default=None)
     types: str = Field(default=None)

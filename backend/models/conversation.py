@@ -15,7 +15,7 @@ class Conversation(BaseModel):
     def to_json(self):
         return {
             "conversation_id": self.conversation_id,
-            "user_id": self.user_id.to_json() if self.user_id else None,
+            "user_id": [user.to_json() for user in self.user_id] if self.user_id else [],
             "task_id": self.task_id.to_json() if self.task_id else None,
             "title": self.title,
             "types": self.types,
@@ -26,7 +26,7 @@ class Conversation(BaseModel):
     def from_json(data: dict) -> "Conversation":
         return Conversation(
             conversation_id=data.get("conversation_id"),
-            user_id=User.from_json(data.get("user_id")) if data.get("user_id") else None,
+            user_id=[User.from_json(u) for u in data.get("user_id")] if data.get("user_id") else [],
             task_id=Task.from_json(data.get("task_id")) if data.get("task_id") else None,
             title=data.get("title"),
             types=data.get("types"),

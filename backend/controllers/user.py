@@ -24,7 +24,7 @@ def _verify_password(plain_password: str, hashed_password: str) -> bool:
 
 def _create_access_token(data: dict):
     to_encode = data.copy()
-    expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_DAYS)
+    expire = datetime.now(timezone.utc) + timedelta(days=ACCESS_TOKEN_EXPIRE_DAYS)
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
@@ -36,7 +36,7 @@ async def login(email,password):
     This function is used to log in a user.
     """
     user = db.get_user_by_email(email)
-    if not user or not _verify_password(password, user.hashed_password):
+    if not user or not _verify_password(password, user.password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
@@ -53,11 +53,6 @@ async def login(email,password):
     )
     return response
 
-# Register Function
-STRONG_PASSWORD_REGEX = re.compile(
-    r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,25}$"
-)
-
 async def register(name: str, email: str, password: str):
     if not name or not email or not password:
         raise HTTPException(
@@ -69,14 +64,6 @@ async def register(name: str, email: str, password: str):
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid email format",
         )
-    # if not STRONG_PASSWORD_REGEX.match(password):
-    #     raise HTTPException(
-    #         status_code=status.HTTP_400_BAD_REQUEST,
-    #         detail=(
-    #             "Password must be 8–25 characters and include: "
-    #             "uppercase, lowercase, number, and special character (@$!%*?&)"
-    #         ),
-    #     )
     if db.get_user_by_email(email):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -100,12 +87,12 @@ async def get_current_user(access_token:str = Cookie(default=None)):
         raise credentials_exception
     try:
         payload = jwt.decode(access_token, SECRET_KEY, algorithms=[ALGORITHM])
-        username: str = payload.get("sub")
-        if username is None:
+        email: str = payload.get("sub")
+        if email is None:
             raise credentials_exception
     except jwt.InvalidTokenError:
         raise credentials_exception
-    user = fake_users_db.get(username)
+    user = db.get_user_by_email(email)
     if user is None:
         raise credentials_exception
     return user

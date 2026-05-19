@@ -3,7 +3,7 @@ from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
-from controllers.users import login as controller_login, register as controller_register, get_current_user
+from controllers.user import login as controller_login, register as controller_register, get_current_user
 from fastapi import APIRouter
 from pydantic import BaseModel
 
@@ -19,9 +19,9 @@ router = APIRouter(
 
 @router.post("/login")
 async def login(form_data: Annotated[OAuth2PasswordRequestForm, Depends()]):
-    username = form_data.username
+    email = form_data.username
     password = form_data.password
-    response = await controller_login(username,password)
+    response = await controller_login(email,password)
 
     return response
 

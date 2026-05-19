@@ -37,7 +37,7 @@ Main Agent for the AI Scheduler that is responsible for receiving the user reque
 1. Database Service - to access the database for storing and retrieving information.
 2. Google Calendar Service - to access the user's Google Calendar for scheduling and retrieving events.
 3. Google Maps - to get the distance and travel time between two locations.
-4. Google Search Engine - to search for relevant information based on the user's request.
+4. Google Search Engine - to search for relevant information based on the user's request. 
 
 If the recommendation is accepted by the users, then it will be saved in the database. If rejected, it will not be saved in the database.
 

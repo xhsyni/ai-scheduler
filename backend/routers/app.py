@@ -1,6 +1,9 @@
 from fastapi import FastAPI
+from fastmcp import FastMCP
+from routers import user,task
 
 app = FastAPI()
+mcp=FastMCP(app)
 
 @app.get("/health")
 def health_check():
@@ -10,3 +13,9 @@ def health_check():
 def read_root():
     return {"message": "Hello World"}
 
+app.include_router(user.router)
+app.include_router(task.router)
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="localhost", port=8000)

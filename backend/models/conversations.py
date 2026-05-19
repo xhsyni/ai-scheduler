@@ -2,7 +2,8 @@ from pydantic import BaseModel, Field
 from typing import Optional,List
 from models.users import User
 from models.tasks import Task
-from datetime import datetime, timezone
+from datetime import datetime
+from utils.timezone import now_myt, to_myt
 
 class Conversation(BaseModel):
     conversation_id: Optional[int] = Field(default=None)
@@ -10,12 +11,12 @@ class Conversation(BaseModel):
     task_id: Optional[Task] = Field(default=None)
     title: str = Field(default=None)
     types: str = Field(default=None)
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=now_myt)
 
     def to_json(self):
         return {
             "conversation_id": self.conversation_id,
-            "user_id": self.user_id.to_json() if self.user_id else None,
+            "user_id": self.user_id,
             "task_id": self.task_id.to_json() if self.task_id else None,
             "title": self.title,
             "types": self.types,
@@ -26,11 +27,11 @@ class Conversation(BaseModel):
     def from_json(data: dict) -> "Conversation":
         return Conversation(
             conversation_id=data.get("conversation_id"),
-            user_id=User.from_json(data.get("user_id")) if data.get("user_id") else None,
+            user_id=data.get("user_id"),
             task_id=Task.from_json(data.get("task_id")) if data.get("task_id") else None,
             title=data.get("title"),
             types=data.get("types"),
-            created_at=data.get("created_at")
+            created_at=to_myt(data.get("created_at"))
         )
 
 class Message(BaseModel):
@@ -41,7 +42,7 @@ class Message(BaseModel):
     normalize_content: Optional[str] = Field(default=None) #english
     language: Optional[str] = Field(default=None)
     useful: Optional[bool] = Field(default=None)
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=now_myt)
 
     def to_json(self):
         return {
@@ -65,5 +66,5 @@ class Message(BaseModel):
             normalize_content=data.get("normalize_content"),
             language=data.get("language"),
             useful=data.get("useful"),
-            created_at=data.get("created_at")
+            created_at=to_myt(data.get("created_at"))
         )

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Eye, EyeOff, Mail, Lock, User, ArrowRight, Sparkles, Users, Brain, CheckCircle2 } from "lucide-react";
+import { Eye, EyeOff, Mail, Lock, User, ArrowRight, Sparkles, Users, Brain, CheckCircle2, Calendar } from "lucide-react"; 
 import { CogniLogo } from "./CogniLogo";
 
 type Mode = "login" | "register";
@@ -31,28 +31,27 @@ export function AuthScreen({ onAuthed }: { onAuthed: (name: string) => void }) {
               <Sparkles size={12} className="text-primary" /> AI-Powered Scheduling
             </div>
             <h2 className="text-4xl font-bold leading-tight">
-              AI-Powered <span className="text-gradient-primary">Group & Personal</span> Optimization
+              AI-Powered <span className="text-gradient-primary">Personal Time</span> Optimization
             </h2>
-            <p className="text-sm text-muted-foreground">
-              CogniPlan learns your rhythm, syncs across teams, and auto-blocks deep work — so your calendar finally works for you.
+            <p className="text-sm text-white/70 leading-relaxed">
+              CogniPlan learns your rhythm and auto-blocks deep work — so your calendar finally works for you.
             </p>
-            <ul className="space-y-3 text-sm">
+            <ul className="space-y-4 text-sm">
               {[
                 { Icon: Brain, t: "Adaptive focus & energy mapping" },
-                { Icon: Users, t: "Group consensus scheduling in seconds" },
+                { Icon: Calendar, t: "Smart scheduling & time-blocking in seconds" },
                 { Icon: CheckCircle2, t: "Smart conflict resolution & reminders" },
               ].map(({ Icon, t }) => (
-                <li key={t} className="flex items-center gap-3 text-foreground/85">
-                  <span className="grid h-8 w-8 place-items-center rounded-lg bg-card/60 ring-1 ring-border">
-                    <Icon size={15} className="text-primary" />
+                <li key={t} className="flex items-center gap-3 text-white/90 font-medium"> {}
+                  <span className="grid h-8 w-8 place-items-center rounded-lg bg-white/10 ring-1 ring-white/15"> {}
+                    <Icon size={15} className="text-white" /> {}
                   </span>
                   {t}
                 </li>
               ))}
             </ul>
           </div>
-
-          <p className="text-xs text-muted-foreground">© 2026 CogniPlan — Plan smarter, live better.</p>
+          <p className="text-xs text-white/40 font-medium">© 2026 CogniPlan — Plan smarter, live better.</p>
         </div>
 
         {/* Form panel */}

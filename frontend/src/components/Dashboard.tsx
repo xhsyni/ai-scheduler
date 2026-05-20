@@ -123,12 +123,12 @@ export function Dashboard({ name, onLogout }: { name: string; onLogout: () => vo
     setTimeout(() => setFlashIds(new Set()), 1800);
   };
 
-  return (
-    <div className="relative min-h-screen text-foreground">
+     return (
+    <div className="fixed inset-0 h-screen w-screen overflow-hidden flex flex-col text-foreground select-none"> {}
       <div className="ambient-bg" />
 
       {/* Top bar */}
-      <header className="sticky top-0 z-40 border-b border-border bg-background/70 backdrop-blur-xl">
+      <header className="w-full shrink-0 border-b border-border bg-[#0d0f14] shadow-[0_4px_30px_rgba(0,0,0,0.5)] z-50"> {}
         <div className="flex items-center gap-4 px-6 py-3">
           <CogniLogo size={32} withWordmark />
           <nav className="ml-8 hidden items-center gap-1 md:flex">
@@ -136,7 +136,6 @@ export function Dashboard({ name, onLogout }: { name: string; onLogout: () => vo
               { Icon: LayoutDashboard, label: "Overview", ws: null },
               { Icon: CalendarDays, label: "Calendar", ws: "calendar" as const },
               { Icon: ListTodo, label: "Tasks", ws: null },
-              { Icon: Users, label: "Groups", ws: "groups" as const },
             ].map(({ Icon, label, ws }) => {
               const active = ws !== null && workspace === ws;
               return (

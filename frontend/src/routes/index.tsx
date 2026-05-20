@@ -9,7 +9,7 @@ export const Route = createFileRoute("/")({
       { title: "CogniPlan — AI Scheduler & Life Planning Assistant" },
       { name: "description", content: "CogniPlan is your AI co-pilot for scheduling, focus, and group planning. Optimize your day with intelligent automation." },
       { property: "og:title", content: "CogniPlan — AI Scheduler" },
-      { property: "og:description", content: "Plan smarter with AI-powered group & personal optimization." },
+      { property: "og:description", content: "Plan smarter with AI-powered Personal Time Optimization" },
     ],
   }),
   component: App,

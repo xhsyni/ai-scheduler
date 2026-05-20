@@ -43,7 +43,7 @@ export function CogniLogo({ size = 36, withWordmark = false, className = "" }: P
           <span className="font-display text-lg font-bold tracking-tight text-foreground">
             Cogni<span className="text-gradient-primary">Plan</span>
           </span>
-          <span className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+          <span className="text-[10px] uppercase tracking-[0.2em] text-white/60 font-semibold">
             AI Scheduler
           </span>
         </div>

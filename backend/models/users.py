@@ -17,7 +17,7 @@ class User(BaseModel):
             "email": self.email,
             "password": self.password,
             "tags": self.tags,
-            "created_at": self.created_at.isoformat(),
+            "created_at": self.created_at.isoformat() if self.created_at else None,
         }
         if self.id:
             data["user_id"] = self.id

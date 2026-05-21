@@ -17,7 +17,7 @@ class GroupTask(BaseModel):
             "name": self.name,
             "role": self.role,
             "updated_by": self.updated_by,
-            "updated_at": self.updated_at.isoformat()
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None
         }
     
     @staticmethod
@@ -58,8 +58,8 @@ class Task(BaseModel):
             "duration": self.duration if self.duration else int((to_myt(self.end_time) - to_myt(self.start_time)).total_seconds() / 60) if self.start_time and self.end_time else None,
             "reminder": self.reminder,
             "status": self.status,
-            "created_at": self.created_at.isoformat(),
-            "updated_at": self.updated_at.isoformat(),
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
         print(data)
         if self.id:

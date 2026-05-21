@@ -1,9 +1,12 @@
 from fastapi import FastAPI
 from fastmcp import FastMCP
-from routers import user,task
+from routers import conversation, task, user
+from services.mcp_tools import register_mcp_tools
 
-app = FastAPI()
-mcp=FastMCP(app)
+mcp = FastMCP("AI Scheduler MCP")
+register_mcp_tools(mcp)
+mcp_app = mcp.http_app(path="/")
+app = FastAPI(lifespan=mcp_app.lifespan)
 
 @app.get("/health")
 def health_check():
@@ -15,6 +18,8 @@ def read_root():
 
 app.include_router(user.router)
 app.include_router(task.router)
+app.include_router(conversation.router)
+app.mount("/mcp", mcp_app)
 
 if __name__ == "__main__":
     import uvicorn

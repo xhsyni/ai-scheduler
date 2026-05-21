@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 class DBService:
     def __init__(self):
-        self.client = MongoClient(MONGO_URL)
+        self.client = MongoClient(MONGO_URL, serverSelectionTimeoutMS=1000)
         try:
             self.client.admin.command('ping')
             logger.info("✅ MongoDB connected successfully")
@@ -168,53 +168,57 @@ class DBService:
     def insert_conversation(self, conversation: Conversation):
         try:
             conversation_dict = conversation.to_json()
-            self.db[self.conversation_collection].insert_one(conversation_dict)
+            result = self.db[self.conversation_collection].insert_one(conversation_dict)
             logger.info(f"Inserted conversation into the database.")
+            return str(result.inserted_id)
         except Exception as e:
             logger.error(f"Error inserting conversation: {e}")
+            return None
+
+    def get_conversations_by_user_id(self, user_id: str) -> list[Conversation]:
+        try:
+            cursor = self.db[self.conversation_collection].find({"user_id": user_id}).sort("created_at", -1)
+            conversations = [Conversation.from_json(doc) for doc in cursor]
+            return conversations
+        except Exception as e:
+            logger.error(f"Error fetching conversations: {e}")
+            return []
+
+    def get_conversation_by_user_id_and_task_id(self, user_id: str, task_id: str) -> Conversation:
+        try:
+            cursor = self.db[self.conversation_collection].find_one({"user_id": user_id, "task_id": task_id})
+            return Conversation.from_json(cursor) if cursor else None
+        except Exception as e:
+            logger.error(f"Error fetching conversation: {e}")
+            return None
+
+    def get_conversation(self, conversation_id: str) -> Conversation:
+        try:
+            query = {"_id": ObjectId(conversation_id)} if ObjectId.is_valid(conversation_id) else {"conversation_id": conversation_id}
+            cursor = self.db[self.conversation_collection].find_one(query)
+            return Conversation.from_json(cursor) if cursor else None
+        except Exception as e:
+            logger.error(f"Error fetching conversation: {e}")
+            return None
 
     # Message Database Functions
     def insert_message(self, message: Message):
         try:
             message_dict = message.to_json()
-            self.db[self.message_collection].insert_one(message_dict)
+            result = self.db[self.message_collection].insert_one(message_dict)
             logger.info(f"Inserted message into the database.")
+            return str(result.inserted_id)
         except Exception as e:
             logger.error(f"Error inserting message: {e}")
-
-    def get_conversation_by_user_id_and_task_id(self,user_id:str,task_id:str) -> Conversation:
-        try:
-            if user_id and ObjectId.is_valid(user_id):
-                user_id=ObjectId(user_id)
-            if task_id and ObjectId.is_valid(task_id):
-                task_id=ObjectId(task_id)
-            cursor = self.db[self.conversation_collection].find_one({"_id": user_id, "task_id": task_id})
-            conversation = Conversation.from_json(cursor)
-            return conversation
-        except Exception as e:
-            logger.error(f"Error fetching conversation: {e}")
             return None
 
-    def get_message(self,conversation_id:str) -> list[Message]:
+    def get_messages(self, conversation_id: str) -> list[Message]:
         try:
-            if conversation_id and ObjectId.is_valid(conversation_id):
-                conversation_id=ObjectId(conversation_id)
-            cursor = self.db[self.message_collection].find({"conversation_id": conversation_id})
+            cursor = self.db[self.message_collection].find({"conversation_id": conversation_id}).sort("created_at", 1)
             messages = [Message.from_json(doc) for doc in cursor]
             return messages
         except Exception as e:
             logger.error(f"Error fetching messages: {e}")
-            return []
-    
-    def get_conversation(self,conversation_id:str) -> Conversation:
-        try:
-            if conversation_id and ObjectId.is_valid(conversation_id):
-                conversation_id=ObjectId(conversation_id)
-            cursor = self.db[self.conversation_collection].find_one({"conversation_id": conversation_id})
-            conversation = Conversation.from_json(cursor)
-            return conversation
-        except Exception as e:
-            logger.error(f"Error fetching conversation: {e}")
             return []
     
     # def get_tasks(self,user_id:int) -> list[Task]:

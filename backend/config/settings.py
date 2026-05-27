@@ -4,8 +4,9 @@ import os
 
 load_dotenv()
 
-MONGO_URL = os.getenv("MONGO_URL", "mongodb://localhost:27017")
-MONGO_DB = os.getenv("MONGO_DB", "ai_scheduler")
+
+MONGO_URL = os.getenv("MONGO_URL")
+MONGO_DB = os.getenv("MONGO_DB", "scheduler")
 MONGO_ID = os.getenv("MONGO_ID")
 MONGO_PASS = os.getenv("MONGO_PASS")
 # MODEL_NAME = os.getenv("MODEL_NAME", "gemma-4-31b-it")

@@ -1,3 +1,6 @@
+docker tag scheduler:latest us-west1-docker.pkg.dev/automate-life-scheduler/backend/scheduler:latest
+docker push us-west1-docker.pkg.dev/automate-life-scheduler/backend/scheduler:latest
+
 
 uvicorn routers.app:app --host localhost --port 8000
 
@@ -41,16 +44,23 @@ Main Agent for the AI Scheduler that is responsible for receiving the user reque
 
 If the recommendation is accepted by the users, then it will be saved in the database. If rejected, it will not be saved in the database.
 
-['get_user_tasks', 'check_schedule_conflict', 'create_schedule_task', 'add_task_into_schedule', 'get_user_memory', 'estimate_travel_time', 'recommend_collaboration_task', 'recommend_tasks_for_collaboration']
+Tools used by the agents:
+1. get_current_datetime
+2. get_user_tasks
+3. check_schedule_conflict
+4. create_schedule_task
+5. add_task_into_schedule
+6. update_task_in_schedule
+8. get_user_memory
+9. estimate_travel_time
+10. recommend_collaboration_task
+11. recommend_tasks_for_collaboration
+
 
 General Sidebar Chatbot
 -  communicate with voice 
 |
 add specific tasks from what time to what time, what location, reminder or not
-
-
-{'users': [{'user_id': '6a0bf7fe0d1d187a4fe5cf61', 'name': 'xuan han', 'role': 'owner', 'updated_by': None, 'updated_at': '2026-05-20T21:05:04.292966+08:00'}], 'title': 'Meeting with Han', 'description': 'Meeting with Han', 'priority': 'mid', 'location': None, 'start_time': '2026-05-20T22:00:00+08:00', 'end_time': '2026-05-20T23:00:00+08:00', 'duration': 60, 'reminder': True, 'status': 'scheduled', 'created_at': '2026-05-20T21:05:04.293000+08:00', 'updated_at': '2026-05-20T21:05:04.292974+08:00'}
-
 
 flowchart LR
   User["User message"] --> RecAgent["recommendation_agent"]

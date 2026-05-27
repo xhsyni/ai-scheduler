@@ -17,7 +17,6 @@ def _parse_datetime(value: str) -> datetime:
     parsed = datetime.fromisoformat(value)
     return to_myt(parsed)
 
-
 def _serialize_tasks(tasks: list[Task]) -> list[dict]:
     return [task.to_json() for task in tasks]
 
@@ -40,7 +39,6 @@ def _check_schedule_conflict(user_id: str, start_time: str, end_time: str) -> di
         "has_conflict": len(conflicts) > 0,
         "conflicts": _serialize_tasks(conflicts),
     }
-
 
 def _create_schedule_task(
     user_id: str,
@@ -300,6 +298,23 @@ def _recommend_tasks_for_collaboration(
 
 # ── MCP tool registration ─────────────────────────────────────────────────────
 
+# 1. get_current_datetime
+# 	- ()
+# 2. get_user_tasks_by_date
+# 	- (user_id, date) 
+# 3. get_free_time_slots
+# 	-  (user_id, date) 
+# 4. check_schedule_conflict
+# 	-  (user_id, start time, end time) 
+# 5. add_task_into_schedule
+# 	- (user_id, title, start_time, end_time, description, priority, location, link, duration, status, reminder) 
+# 6. update_task_in_schedule
+# 	- (user_id, title, start_time, end_time, description, priority, location, link, duration, status, reminder) 
+# 7. get_user_memory 
+# 	- [user_ids]
+# 8. location_finder
+# 	- (origin, destination, transport mode) 
+
 def register_mcp_tools(mcp):
 
     @mcp.tool()
@@ -319,14 +334,80 @@ def register_mcp_tools(mcp):
         }
 
     @mcp.tool()
-    def get_user_tasks(user_id: str) -> dict:
+    def get_user_tasks_by_date(user_id: str, date: str) -> dict:
         """
-        List all scheduled tasks for a user.
+        List all scheduled tasks for a user on a specific date.
         Use this to show the user their upcoming events or to check what
         is already on their calendar before scheduling something new.
         """
-        tasks = db.get_tasks_by_user_id(user_id)
-        return {"tasks": _serialize_tasks(tasks)}
+        tasks = db.get_tasks_by_user_id_and_date(user_id, date)
+        return {
+            "tasks": _serialize_tasks(tasks),
+            "date": date,
+            "user_id": user_id,
+        }
+
+    @mcp.tool()
+    def get_free_time_slots(user_id: str, date: str) -> dict:
+        """
+        Get the user's free time slots for a specific date.
+        The date must be in ISO format (e.g. '2025-05-21').
+        Use this to find suitable times for scheduling new tasks.
+        """
+
+        tasks = db.get_tasks_by_user_id_and_date(user_id, date)
+
+        # Keep only tasks with valid start/end times
+        tasks_ = [
+            task for task in tasks
+            if task.start_time and task.end_time
+        ]
+
+        # Sort tasks by start time
+        tasks_.sort(key=lambda x: x.start_time)
+
+        # Define day boundaries
+        target_date = datetime.fromisoformat(date).date()
+        day_start = datetime.combine(target_date, time.min)
+        day_end = datetime.combine(target_date, time.max)
+
+        free_time_slots = []
+
+        current_start = day_start
+
+        for task in tasks_:
+            task_start = task.start_time
+            task_end = task.end_time
+
+            # Convert string datetime if necessary
+            if isinstance(task_start, str):
+                task_start = datetime.fromisoformat(task_start)
+
+            if isinstance(task_end, str):
+                task_end = datetime.fromisoformat(task_end)
+
+            # Free slot before this task
+            if task_start > current_start:
+                free_time_slots.append({
+                    "start_time": current_start.isoformat(),
+                    "end_time": task_start.isoformat(),
+                })
+
+            # Move current pointer forward
+            current_start = max(current_start, task_end)
+
+        # Free slot after last task
+        if current_start < day_end:
+            free_time_slots.append({
+                "start_time": current_start.isoformat(),
+                "end_time": day_end.isoformat(),
+            })
+
+        return {
+            "free_time_slots": free_time_slots,
+            "date": date,
+            "user_id": user_id,
+        }
 
     @mcp.tool()
     def check_schedule_conflict(user_id: str, start_time: str, end_time: str) -> dict:
@@ -334,7 +415,7 @@ def register_mcp_tools(mcp):
         Check whether a proposed time range overlaps any existing task for this user.
         start_time and end_time must be ISO 8601 strings with +08:00 offset,
         e.g. '2025-05-21T09:00:00+08:00'.
-        Returns has_conflict (bool) and a list of conflicting tasks.
+        Returns has_conflict (bool) and a list of conflicting tasks. 
         """
         return _check_schedule_conflict(user_id, start_time, end_time)
 
@@ -373,6 +454,37 @@ def register_mcp_tools(mcp):
             location=location or None,
             reminder=reminder,
         )
+
+    def update_task_in_schedule(
+        task_id: str,
+        title: Optional[str] = None,
+        start_time: Optional[str] = None,
+        end_time: Optional[str] = None,
+        description: Optional[str] = None,
+        priority: Optional[str] = None,
+        location: Optional[str] = None,
+        reminder: Optional[bool] = None,
+    ) -> dict:
+        """
+        Update an existing task in the schedule. Only provide the fields that need to be changed.
+        - task_id    : the ID of the task to update
+        - title      : new title for the task (e.g. "Gym session with Alice")
+        - start_time : new start time in ISO 8601 with +08:00 offset
+        - end_time   : new end time in ISO 8601 with +08:00 offset
+        - description: new details/notes about the task
+        - priority   : 'low', 'mid', or 'high'
+        - location   : new venue name; leave blank if not applicable
+        - reminder   : set true if the user asked for a reminder, false to remove reminder
+
+        Returns status='updated' on success, or status='error' if the task is not found
+        or if the new time range conflicts with another existing task.
+        """
+        # For simplicity, this example does not implement the update logic.
+        return {
+            "status": "error",
+            "detail": "Update functionality is not implemented in this example.",
+            "task_id": task_id,
+        }
 
     @mcp.tool()
     def get_user_memory(user_id: str) -> dict:

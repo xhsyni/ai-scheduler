@@ -1,4 +1,7 @@
+import certifi
+import pymongo
 from pymongo import MongoClient
+from pymongo.server_api import ServerApi
 from config.settings import MONGO_URL, MONGO_DB
 from models.tasks import Task
 import logging
@@ -11,12 +14,12 @@ logger = logging.getLogger(__name__)
 
 class DBService:
     def __init__(self):
-        self.client = MongoClient(MONGO_URL, serverSelectionTimeoutMS=1000)
+        self.client = MongoClient(MONGO_URL)
         try:
             self.client.admin.command('ping')
             logger.info("✅ MongoDB connected successfully")
         except Exception as e:
-            logger.error(f"❌ MongoDB connection failed: {e}")
+            logger.error("❌ MongoDB connection failed: %s", e)
         self.db = self.client[MONGO_DB]
         self.user_collection = "users"
         self.task_collection = "tasks"
@@ -54,6 +57,26 @@ class DBService:
             return None 
 
     # Tasks Database Functions
+    def get_tasks_by_user_id_and_date(self, user_id: str, date: str) -> list[Task]:
+        try:
+            start_date = to_myt(datetime.strptime(date, "%Y-%m-%d"))
+            end_date = to_myt(start_date + timedelta(days=1))
+
+            cursor = self.db[self.task_collection].find({
+                "users.user_id": {"$eq": user_id},
+                "start_time": {
+                    "$gte": start_date,
+                    "$lt": end_date
+                }
+            })
+
+            tasks = [Task.from_json(doc) for doc in cursor]
+            return tasks
+
+        except Exception as e:
+            logger.error(f"Error fetching tasks: {e}")
+            return []
+
     def get_task_by_id(self, task_id: str) -> Task:
         try:
             cursor = self.db[self.task_collection].find_one({"_id": ObjectId(task_id)})

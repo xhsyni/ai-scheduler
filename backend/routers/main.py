@@ -21,6 +21,3 @@ app.include_router(task.router)
 app.include_router(conversation.router)
 app.mount("/mcp", mcp_app)
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="localhost", port=8000)

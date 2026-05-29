@@ -9,6 +9,8 @@ from bson.objectid import ObjectId
 from models.conversations import Conversation, Message
 from models.users import User
 from models.tasks import GroupTask
+from utils.timezone import now_myt,to_myt
+from datetime import datetime,timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -57,10 +59,13 @@ class DBService:
             return None 
 
     # Tasks Database Functions
-    def get_tasks_by_user_id_and_date(self, user_id: str, date: str) -> list[Task]:
+    def get_tasks_by_user_id_and_date(self, user_id: str, start_time: str, end_time:str=None) -> list[Task]:
         try:
-            start_date = to_myt(datetime.strptime(date, "%Y-%m-%d"))
-            end_date = to_myt(start_date + timedelta(days=1))
+            start_date = to_myt(datetime.strptime(start_time, "%Y-%m-%d"))
+            if end_time is None:
+                end_date = to_myt(start_date + timedelta(days=1))
+            else:
+                end_date = to_myt(datetime.strptime(end_time, "%Y-%m-%d"))
 
             cursor = self.db[self.task_collection].find({
                 "users.user_id": {"$eq": user_id},
@@ -76,6 +81,60 @@ class DBService:
         except Exception as e:
             logger.error(f"Error fetching tasks: {e}")
             return []
+
+    def get_tasks_by_user_id_and_title(self,keyword,query_embedding,user_id,start_time,end_time=None,limit=10):
+        numCandidate = min(limit * 6, 1000)
+        start_date = to_myt(datetime.strptime(start_time, "%Y-%m-%d"))
+        if end_time is None:
+            end_date = to_myt(start_date + timedelta(days=1))
+        else:
+            end_date = to_myt(datetime.strptime(end_time, "%Y-%m-%d"))
+        try:
+            if query_embedding and len(query_embedding) > 0:
+                vector_pipeline = [
+                    {
+                        "$vectorSearch": {
+                            "queryVector": query_embedding,
+                            "path": "embedding_vector",
+                            "numCandidates": numCandidate, 
+                            "limit": limit, 
+                            "index": "vector_index",
+                            "filter": {
+                                "users.user_id": user_id,
+                                "start_time": {
+                                    "$gte": start_date,
+                                    "$lt": end_date
+                                }
+                            }
+                        }
+                    },
+                    {"$addFields": {"score": {"$meta": "vectorSearchScore"}}}
+                ]
+                vector_results = list(self.task_collection.aggregate(vector_pipeline))
+
+            if keyword:
+                if isinstance(keyword, str):
+                    keyword = [keyword]
+
+                keyword_pipeline = [
+                    {
+                        "$search": {
+                            "text": {
+                                "query": keyword,
+                                "path": [
+                                    "title",
+                                    "description"
+                                ]
+                            }
+                        }
+                    },
+                    {"$addFields": {"score": {"$meta": "searchScore"}}},
+                    {"$match": {"users.user_id": user_id}}
+                ]
+                keyword_results = list(self.task_collection.aggregate(keyword_pipeline))
+            return vector_results,keyword_results
+        except:
+            pass
 
     def get_task_by_id(self, task_id: str) -> Task:
         try:
@@ -95,15 +154,6 @@ class DBService:
         except Exception as e:
             logger.error(f"Error inserting tasks: {e}")
 
-    def get_tasks_by_user_id(self,user_id:str) -> list[Task]:
-        try:
-            cursor = self.db[self.task_collection].find({"users.user_id": {"$eq": user_id}})
-            tasks = [Task.from_json(doc) for doc in cursor]
-            return tasks
-        except Exception as e:
-            logger.error(f"Error fetching tasks: {e}")
-            return []
-    
     def user_exists_in_task(self, task_id: str, user_id: str) -> bool:
         try:
             task = self.db[self.task_collection].find_one({

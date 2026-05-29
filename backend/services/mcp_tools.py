@@ -12,87 +12,10 @@ db = DBService()
 
 USER_AGENT = "ai-scheduler/1.0"
 
-
-def _parse_datetime(value: str) -> datetime:
-    parsed = datetime.fromisoformat(value)
-    return to_myt(parsed)
-
-def _serialize_tasks(tasks: list[Task]) -> list[dict]:
-    return [task.to_json() for task in tasks]
-
-
-def _find_conflicts(user_id: str, start_time: datetime, end_time: datetime) -> list[Task]:
-    conflicts = []
-    for task in db.get_tasks_by_user_id(user_id):
-        if not task.start_time or not task.end_time:
-            continue
-        if start_time < to_myt(task.end_time) and end_time > to_myt(task.start_time):
-            conflicts.append(task)
-    return conflicts
-
-
-def _check_schedule_conflict(user_id: str, start_time: str, end_time: str) -> dict:
-    start = _parse_datetime(start_time)
-    end = _parse_datetime(end_time)
-    conflicts = _find_conflicts(user_id, start, end)
-    return {
-        "has_conflict": len(conflicts) > 0,
-        "conflicts": _serialize_tasks(conflicts),
-    }
-
-def _create_schedule_task(
-    user_id: str,
-    title: str,
-    start_time: str,
-    end_time: str,
-    description: Optional[str] = None,
-    priority: str = "mid",
-    location: Optional[str] = None,
-    reminder: bool = False,
-) -> dict:
-    user = db.get_user_by_id(user_id)
-    if not user:
-        return {"status": "error", "detail": f"User {user_id} not found"}
-
-    start = _parse_datetime(start_time)
-    end = _parse_datetime(end_time)
-    duration = int((end - start).total_seconds() / 60)
-    task = Task(
-        users=[GroupTask(user_id=user.id, name=user.name, role="owner")],
-        title=title,
-        description=description,
-        priority=priority,
-        location=location,
-        start_time=start,
-        end_time=end,
-        duration=duration,
-        reminder=reminder,
-        status="scheduled",
-        updated_at=now_myt(),
-    )
-    db.insert_tasks([task])
-    return {
-        "status": "scheduled",
-        "task": task.to_json(),
-    }
-
-
-def _get_user_memory(user_id: str) -> dict:
-    user = db.get_user_by_id(user_id)
-    if not user:
-        return {"status": "error", "detail": f"User {user_id} not found"}
-    return {
-        "user_id": user.id,
-        "name": user.name,
-        "tags": user.tags
-    }
-
-
 def _get_json(url: str) -> dict | list:
     request = Request(url, headers={"User-Agent": USER_AGENT})
     with urlopen(request, timeout=15) as response:
         return json.loads(response.read().decode("utf-8"))
-
 
 def _geocode_location(location: str) -> dict:
     query = urlencode({"q": location, "format": "json", "limit": 1})
@@ -106,7 +29,6 @@ def _geocode_location(location: str) -> dict:
         "lat": float(result["lat"]),
         "lon": float(result["lon"]),
     }
-
 
 def _estimate_travel_time(origin: str, destination: str, transport_mode: str = "driving") -> dict:
     osrm_profiles = {

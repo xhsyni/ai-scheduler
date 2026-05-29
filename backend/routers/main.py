@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastmcp import FastMCP
 from routers import conversation, task, user
-from services.mcp_tools import register_mcp_tools
+from services.tools import register_mcp_tools
 
 mcp = FastMCP("AI Scheduler MCP")
 register_mcp_tools(mcp)

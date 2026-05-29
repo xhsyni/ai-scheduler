@@ -43,6 +43,7 @@ class Task(BaseModel):
     duration: Optional[int] = Field(default=None)
     reminder: Optional[bool] = Field(default=False)
     status: Optional[str] = Field(default=None)
+    embeddings: List[int] = Field(default=None)
     created_at: datetime = Field(default_factory=now_myt)
     updated_at: datetime = Field(default_factory=now_myt)
 
@@ -58,6 +59,7 @@ class Task(BaseModel):
             "duration": self.duration if self.duration else int((to_myt(self.end_time) - to_myt(self.start_time)).total_seconds() / 60) if self.start_time and self.end_time else None,
             "reminder": self.reminder,
             "status": self.status,
+            "embeddings":self.embeddings,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
@@ -80,6 +82,7 @@ class Task(BaseModel):
             duration=data.get("duration"),
             reminder=data.get("reminder"),
             status=data.get("status"),
+            embeddings=data.get("embeddings"),
             created_at=to_myt(data.get("created_at")),
             updated_at=to_myt(data.get("updated_at"))
         )

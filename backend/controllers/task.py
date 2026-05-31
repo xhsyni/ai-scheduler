@@ -5,6 +5,7 @@ from models.tasks import Task, GroupTask
 from utils.timezone import to_myt,now_myt
 from fastapi.responses import JSONResponse
 from datetime import datetime, timedelta
+from typing import List, Dict, Optional
 
 db = DBService()
 
@@ -32,16 +33,17 @@ def _check_conflict_tasks(
         tasks = db.get_tasks_by_user_id_and_date(user_id, new_start_time,new_end_time)
         user_conflicts = []
         for task in tasks:
-            if (to_myt(new_start_time) < to_myt(task.end_time) and to_myt(new_end_time) > to_myt(task.start_time)):
+            if (to_myt(new_start_time) < task.end_time) and (to_myt(new_end_time) > task.start_time):
                 user_conflicts.append(task.to_json())
         conflicts[user_id] = user_conflicts
+    print(f"Conflict check for user_ids={user_ids}, new_start_time={to_myt(new_start_time)}, new_end_time={to_myt(new_end_time).isoformat()} found conflicts: {conflicts}")
     return conflicts
 
 def _check_free_time_slot(
-    all_busy_slots: List[Dict[str]], 
-    working_bounds: Dict[str], 
+    all_busy_slots: List[Dict[str,datetime]], 
+    working_bounds: Dict[str,datetime], 
     duration_minutes: int
-) -> List[Dict[str]]:
+) -> List[Dict[str,datetime]]:
     sorted_busy = sorted(all_busy_slots, key=lambda x: x['start'])
     
     merged_busy= []
@@ -78,8 +80,8 @@ async def create_task(task: Task, current_user: User):
     if task.start_time and task.end_time:
         if not check_valid_task(task):
             return JSONResponse({"status_code":status.HTTP_400_BAD_REQUEST, "detail": f"Invalid task"})
-        conflict_tasks = _check_conflict_tasks(task, current_user.id)
-        if conflict_tasks:
+        conflict_tasks = _check_conflict_tasks(current_user.id, task.start_time, task.end_time)
+        if len(conflict_tasks.get("conflict_data", [])) > 0:
             return JSONResponse({"conflict_data":conflict_tasks,"status_code":status.HTTP_400_BAD_REQUEST, "detail": f"You have a time conflict with {len(conflict_tasks)} tasks"})
         duration = (task.end_time - task.start_time).total_seconds() / 60
         task = task.model_copy(update={"duration": duration,"updated_at":now_myt()})
@@ -92,13 +94,19 @@ async def create_task(task: Task, current_user: User):
         "message": "Task created successfully"
     }
 
-async def get_tasks_by_date(current_user: User,start_date,end_date):
-    if end_date - start_date > 32:
+async def get_tasks_by_date(current_user: User,start_date: str,end_date: Optional[str] = None):
+    if isinstance(start_date, str):
+        start_date_iso = datetime.fromisoformat(start_date)
+    if isinstance(end_date, str):        
+        end_date_iso = datetime.fromisoformat(end_date)
+    
+    if end_date_iso - start_date_iso > timedelta(days=32):
         return JSONResponse({"status_code":status.HTTP_400_BAD_REQUEST, "detail": f"The filter date cannot be more than 32 days."})
     tasks = db.get_tasks_by_user_id_and_date(current_user.id,start_date,end_date)
 
     grouped: dict[str, list] = {}
     for task in tasks:
+        print(task)
         date_key = task.start_time.date()
         grouped.setdefault(date_key, []).append(task.to_json())
 
@@ -112,8 +120,8 @@ async def update_task(task: Task, task_id: str, current_user: User):
     if task.start_time and task.end_time:
         if not check_valid_task(task):
             return JSONResponse({"status_code":status.HTTP_400_BAD_REQUEST, "detail": f"Invalid task"})
-        conflict_tasks = _check_conflict_tasks(task, current_user.id)
-        if conflict_tasks:
+        conflict_tasks = _check_conflict_tasks(current_user.id, task.start_time, task.end_time)
+        if len(conflict_tasks.get("conflict_data", [])) > 0:
             return JSONResponse({"conflict_data":conflict_tasks,"status_code":status.HTTP_400_BAD_REQUEST, "detail": f"You have a time conflict with {len(conflict_tasks)} tasks"})
         duration = (task.end_time - task.start_time).total_seconds() / 60
         task = task.model_copy(update={"duration": duration,"updated_at":now_myt()})

@@ -1,20 +1,48 @@
 import { useState } from "react";
-import { Eye, EyeOff, Mail, Lock, User, ArrowRight, Sparkles, Users, Brain, CheckCircle2, Calendar } from "lucide-react"; 
+import { Eye, EyeOff, Mail, Lock, User, ArrowRight, Sparkles, Users, Brain, CheckCircle2, Calendar } from "lucide-react";
 import { CogniLogo } from "./CogniLogo";
+import { useDispatch } from "react-redux";
+import { registerUser, loginUser } from "../redux/auth";
+import Cookies from "js-cookie";
 
 type Mode = "login" | "register";
 
 export function AuthScreen({ onAuthed }: { onAuthed: (name: string) => void }) {
+  const dispatch = useDispatch();
   const [mode, setMode] = useState<Mode>("login");
   const [showPw, setShowPw] = useState(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [agree, setAgree] = useState(false);
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const displayName = mode === "register" ? name || "Friend" : email.split("@")[0] || "Friend";
-    onAuthed(displayName);
+    try {
+      if (mode === "register") {
+        if (password !== confirmPassword) {
+          throw new Error("Passwords do not match");
+        }
+        const result = await dispatch(registerUser({ username: name, email, password })).unwrap();
+        if (result.status_code === 200) {
+          setMode("login")
+          setEmail("");
+          setPassword("");
+          setConfirmPassword("");
+          setName("");
+        }
+      }
+      if (mode === "login") {
+        const result = await dispatch(loginUser({ email, password })).unwrap();
+        Cookies.set("access_token", result.access_token);
+        if (document.cookie.includes("access_token")) {
+          onAuthed(email);
+        }
+      }
+    } catch (error) {
+      console.error("Registration failed:", error);
+    }
   };
 
   return (
@@ -42,9 +70,9 @@ export function AuthScreen({ onAuthed }: { onAuthed: (name: string) => void }) {
                 { Icon: Calendar, t: "Smart scheduling & time-blocking in seconds" },
                 { Icon: CheckCircle2, t: "Smart conflict resolution & reminders" },
               ].map(({ Icon, t }) => (
-                <li key={t} className="flex items-center gap-3 text-white/90 font-medium"> {}
-                  <span className="grid h-8 w-8 place-items-center rounded-lg bg-white/10 ring-1 ring-white/15"> {}
-                    <Icon size={15} className="text-white" /> {}
+                <li key={t} className="flex items-center gap-3 text-white/90 font-medium"> { }
+                  <span className="grid h-8 w-8 place-items-center rounded-lg bg-white/10 ring-1 ring-white/15"> { }
+                    <Icon size={15} className="text-white" /> { }
                   </span>
                   {t}
                 </li>
@@ -66,11 +94,10 @@ export function AuthScreen({ onAuthed }: { onAuthed: (name: string) => void }) {
               <button
                 key={m}
                 onClick={() => setMode(m)}
-                className={`relative rounded-full px-5 py-1.5 text-xs font-semibold uppercase tracking-wider transition-all ${
-                  mode === m
-                    ? "bg-gradient-primary text-primary-foreground shadow-glow"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
+                className={`relative rounded-full px-5 py-1.5 text-xs font-semibold uppercase tracking-wider transition-all ${mode === m
+                  ? "bg-gradient-primary text-primary-foreground shadow-glow"
+                  : "text-muted-foreground hover:text-foreground"
+                  }`}
               >
                 {m === "login" ? "Sign In" : "Register"}
               </button>
@@ -117,6 +144,8 @@ export function AuthScreen({ onAuthed }: { onAuthed: (name: string) => void }) {
                 type={showPw ? "text" : "password"}
                 placeholder="••••••••"
                 className="input-bare"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
               />
               <button
                 type="button"
@@ -129,7 +158,7 @@ export function AuthScreen({ onAuthed }: { onAuthed: (name: string) => void }) {
 
             {mode === "register" && (
               <Field icon={Lock} label="Confirm Password">
-                <input required type="password" placeholder="••••••••" className="input-bare" />
+                <input required type="password" placeholder="••••••••" className="input-bare" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
               </Field>
             )}
 
@@ -225,10 +254,10 @@ function Field({
 function GoogleIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 48 48">
-      <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.4 29.3 35.5 24 35.5c-6.4 0-11.5-5.1-11.5-11.5S17.6 12.5 24 12.5c2.9 0 5.6 1.1 7.6 2.9l5.7-5.7C33.6 6.3 29 4.5 24 4.5 13.2 4.5 4.5 13.2 4.5 24S13.2 43.5 24 43.5 43.5 34.8 43.5 24c0-1.2-.1-2.3-.3-3.5z"/>
-      <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 16 19 13 24 13c2.9 0 5.6 1.1 7.6 2.9l5.7-5.7C33.6 6.8 29 5 24 5 16.3 5 9.6 9 6.3 14.7z"/>
-      <path fill="#4CAF50" d="M24 43c4.9 0 9.4-1.9 12.8-5l-5.9-5c-2 1.4-4.4 2.2-6.9 2.2-5.3 0-9.7-3.4-11.3-8.1l-6.5 5C9.5 38.9 16.2 43 24 43z"/>
-      <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.1-4.1 5.5l5.9 5C40.9 35.4 44 30.1 44 24c0-1.2-.1-2.3-.4-3.5z"/>
+      <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.4 29.3 35.5 24 35.5c-6.4 0-11.5-5.1-11.5-11.5S17.6 12.5 24 12.5c2.9 0 5.6 1.1 7.6 2.9l5.7-5.7C33.6 6.3 29 4.5 24 4.5 13.2 4.5 4.5 13.2 4.5 24S13.2 43.5 24 43.5 43.5 34.8 43.5 24c0-1.2-.1-2.3-.3-3.5z" />
+      <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 16 19 13 24 13c2.9 0 5.6 1.1 7.6 2.9l5.7-5.7C33.6 6.8 29 5 24 5 16.3 5 9.6 9 6.3 14.7z" />
+      <path fill="#4CAF50" d="M24 43c4.9 0 9.4-1.9 12.8-5l-5.9-5c-2 1.4-4.4 2.2-6.9 2.2-5.3 0-9.7-3.4-11.3-8.1l-6.5 5C9.5 38.9 16.2 43 24 43z" />
+      <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.1-4.1 5.5l5.9 5C40.9 35.4 44 30.1 44 24c0-1.2-.1-2.3-.4-3.5z" />
     </svg>
   );
 }

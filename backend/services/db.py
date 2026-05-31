@@ -9,7 +9,7 @@ from bson.objectid import ObjectId
 from models.conversations import Conversation, Message
 from models.users import User
 from models.tasks import GroupTask
-from utils.timezone import now_myt,to_myt
+from utils.timezone import now_myt,to_myt, to_utc
 from datetime import datetime,timedelta
 
 logger = logging.getLogger(__name__)
@@ -57,38 +57,36 @@ class DBService:
         except Exception as e:
             logger.error(f"Error fetching user: {e}")
             return None 
-
+    
     # Tasks Database Functions
-    def get_tasks_by_user_id_and_date(self, user_id: str, start_time: str, end_time:str=None) -> list[Task]:
+    def get_tasks_by_user_id_and_date(self, user_id: str, start_time, end_time=None) -> list[Task]:
         try:
-            start_date = to_myt(datetime.strptime(start_time, "%Y-%m-%d"))
+            if isinstance(start_time, str):
+                start_time = datetime.strptime(start_time, "%Y-%m-%d")
             if end_time is None:
-                end_date = to_myt(start_date + timedelta(days=1))
+                end_time = start_time + timedelta(days=1)
             else:
-                end_date = to_myt(datetime.strptime(end_time, "%Y-%m-%d"))
+                end_time = datetime.strptime(end_time, "%Y-%m-%d")
 
             cursor = self.db[self.task_collection].find({
-                "users.user_id": {"$eq": user_id},
+                "users.user_id": user_id,
                 "start_time": {
-                    "$gte": start_date,
-                    "$lt": end_date
+                    "$gte": start_time,
+                    "$lt": end_time
                 }
             })
-
-            tasks = [Task.from_json(doc) for doc in cursor]
-            return tasks
-
+            return [Task.from_json(doc) for doc in cursor]
         except Exception as e:
             logger.error(f"Error fetching tasks: {e}")
             return []
 
     def get_tasks_by_user_id_and_title(self,keyword,query_embedding,user_id,start_time,end_time=None,limit=10):
         numCandidate = min(limit * 6, 1000)
-        start_date = to_myt(datetime.strptime(start_time, "%Y-%m-%d"))
+        start_date = to_utc(datetime.strptime(start_time, "%Y-%m-%d"))
         if end_time is None:
-            end_date = to_myt(start_date + timedelta(days=1))
+            end_date = to_utc(start_date + timedelta(days=1))
         else:
-            end_date = to_myt(datetime.strptime(end_time, "%Y-%m-%d"))
+            end_date = to_utc(datetime.strptime(end_time, "%Y-%m-%d"))
         try:
             if query_embedding and len(query_embedding) > 0:
                 vector_pipeline = [

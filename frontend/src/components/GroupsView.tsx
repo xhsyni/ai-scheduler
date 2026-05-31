@@ -99,8 +99,8 @@ export function GroupsView() {
                 const v = OVERLAY[si][di];
                 const cls =
                   v === 2 ? "bg-primary shadow-[0_0_12px_-2px_currentColor] text-primary" :
-                  v === 1 ? "bg-primary/30 text-primary" :
-                  "bg-card border border-border/60";
+                    v === 1 ? "bg-primary/30 text-primary" :
+                      "bg-card border border-border/60";
                 return <div key={`${d}-${slot}`} className={`h-6 rounded ${cls}`} />;
               })}
             </Fragment>
@@ -130,9 +130,8 @@ export function GroupsView() {
                 key={opt.k}
                 onClick={() => vote(opt.k)}
                 disabled={!!picked}
-                className={`relative w-full overflow-hidden rounded-lg border p-3 text-left transition-all ${
-                  isPicked ? "border-primary bg-primary/10" : "border-border bg-background/30 hover:border-primary/50"
-                } ${picked && !isPicked ? "opacity-60" : ""}`}
+                className={`relative w-full overflow-hidden rounded-lg border p-3 text-left transition-all ${isPicked ? "border-primary bg-primary/10" : "border-border bg-background/30 hover:border-primary/50"
+                  } ${picked && !isPicked ? "opacity-60" : ""}`}
               >
                 <div
                   className="absolute inset-y-0 left-0 bg-gradient-primary/20 transition-all"

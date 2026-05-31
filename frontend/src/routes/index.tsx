@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { AuthScreen } from "@/components/AuthScreen";
 import { Dashboard } from "@/components/Dashboard";
+import { getMe } from "@/api/auth";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -17,6 +18,13 @@ export const Route = createFileRoute("/")({
 
 function App() {
   const [user, setUser] = useState<string | null>(null);
+
+  if (!user) {
+    getMe().then((res) => {
+      setUser(res.user.name);
+    });
+  }
+
   return user
     ? <Dashboard name={user} onLogout={() => setUser(null)} />
     : <AuthScreen onAuthed={setUser} />;

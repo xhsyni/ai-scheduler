@@ -75,8 +75,11 @@ async def register(name: str, email: str, password: str):
         password=_hashed_password(password)
     )
     db.insert_user(user)
-    return {"message": "User registered successfully"}
-
+    return HTTPException(
+        status_code=status.HTTP_200_OK,
+        detail="User registered successfully"
+    )
+    
 async def get_current_user(access_token:str = Cookie(default=None)):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,

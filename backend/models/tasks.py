@@ -3,6 +3,7 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 from typing import Optional,List, Literal
 from models.users import User
+from dateutil.parser import isoparse
 
 class GroupTask(BaseModel):
     user_id: str = Field(default=None)
@@ -34,7 +35,7 @@ class Task(BaseModel):
     id: Optional[str] = Field(default=None)
     users: List[GroupTask] = Field(default=[])
     title: str = Field(default=None)
-    description: str = Field(default=None)
+    description: Optional[str] = Field(default=None)
     priority: Literal["low", "mid", "high"] = Field(default="low")
     location: Optional[str] = Field(default=None)
     link: Optional[List[str]] = Field(default=None)
@@ -43,7 +44,7 @@ class Task(BaseModel):
     duration: Optional[int] = Field(default=None)
     reminder: Optional[bool] = Field(default=False)
     status: Optional[str] = Field(default=None)
-    embeddings: List[int] = Field(default=None)
+    embeddings: Optional[List[int]] = Field(default=[])
     created_at: datetime = Field(default_factory=now_myt)
     updated_at: datetime = Field(default_factory=now_myt)
 
@@ -54,14 +55,14 @@ class Task(BaseModel):
             "description": self.description,
             "priority": self.priority,
             "location": self.location,
-            "start_time": self.start_time.isoformat() if self.start_time else None,
-            "end_time": self.end_time.isoformat() if self.end_time else None,
+            "start_time": self.start_time if self.start_time else None,
+            "end_time": self.end_time if self.end_time else None,
             "duration": self.duration if self.duration else int((to_myt(self.end_time) - to_myt(self.start_time)).total_seconds() / 60) if self.start_time and self.end_time else None,
             "reminder": self.reminder,
             "status": self.status,
             "embeddings":self.embeddings,
-            "created_at": self.created_at.isoformat() if self.created_at else None,
-            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "created_at": self.created_at if self.created_at else None,
+            "updated_at": self.updated_at if self.updated_at else None,
         }
         print(data)
         if self.id:
@@ -77,12 +78,12 @@ class Task(BaseModel):
             description=data.get("description"),
             priority=data.get("priority"),
             location=data.get("location"),
-            start_time=to_myt(data.get("start_time")),
-            end_time=to_myt(data.get("end_time")),
+            start_time=(data.get("start_time")),
+            end_time=(data.get("end_time")),
             duration=data.get("duration"),
             reminder=data.get("reminder"),
             status=data.get("status"),
             embeddings=data.get("embeddings"),
-            created_at=to_myt(data.get("created_at")),
-            updated_at=to_myt(data.get("updated_at"))
+            created_at=(data.get("created_at")),
+            updated_at=(data.get("updated_at"))
         )

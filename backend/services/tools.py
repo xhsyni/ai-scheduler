@@ -1,5 +1,5 @@
 from services.db import DBService
-from controllers.task import _check_valid_task, _check_conflict_tasks, _check_free_time_slot
+from controllers.task import _check_conflict_tasks, _check_free_time_slot
 from models.tasks import Task, GroupTask
 from utils.timezone import to_myt, now_myt
 from typing import Optional
@@ -200,13 +200,12 @@ def register_mcp_tools(mcp):
     
     @mcp.tool()
     def get_user_memory(user_ids) -> dict:
+        """
+        Get the user's memory based on the user_id.
+        """
         user_tags = []
         for user in user_ids:
             user = db.get_user_by_id(user)
             if user.tags not in user_tags:
                 user_tags.append(user.tags)
         return user_tags 
-
-    @mcp.tool()
-    def get_locations(origin,destination,transport_mode):
-        pass 

@@ -3,7 +3,7 @@ from controllers.user import get_current_user
 from typing import Annotated
 from controllers.task import (
     create_task as controller_create_task, 
-    get_tasks as controller_get_tasks, 
+    get_tasks_by_date as controller_get_tasks_by_date, 
     update_task as controller_update_task, 
     add_user_to_task as controller_add_user_to_task,
     update_user_role as controller_update_user_role, delete_user_from_task as controller_delete_user_from_task)
@@ -38,8 +38,8 @@ async def create_task(task:Task,current_user: Annotated[dict, Depends(get_curren
     return response
 
 @router.get("/get-tasks")
-async def get_tasks(current_user: Annotated[dict, Depends(get_current_user)]):
-    response = await controller_get_tasks(current_user)
+async def get_tasks_by_date(current_user: Annotated[dict, Depends(get_current_user)], start_date: str, end_date: Optional[str] = None):
+    response = await controller_get_tasks_by_date(current_user, start_date, end_date)
     return response
 
 @router.put("/update-task/{task_id}")

@@ -15,7 +15,7 @@ class Conversation(BaseModel):
             "user_id": self.user_id,
             "task_id": self.task_id,
             "title": self.title,
-            "created_at": self.created_at.isoformat() if self.created_at else None
+            "created_at": self.created_at if self.created_at else None
         }
         if self.conversation_id:
             data["conversation_id"] = self.conversation_id
@@ -30,7 +30,7 @@ class Conversation(BaseModel):
             user_id=data.get("user_id"),
             task_id=data.get("task_id"),
             title=data.get("title"),
-            created_at=to_myt(data.get("created_at"))
+            created_at=data.get("created_at")
         )
 
 class Message(BaseModel):
@@ -53,7 +53,7 @@ class Message(BaseModel):
             "message_input": self.message_input,
             "language": self.language,
             "useful": self.useful,
-            "created_at": self.created_at.isoformat() if self.created_at else None
+            "created_at": self.created_at if self.created_at else None
         }
         if self.message_id:
             data["message_id"] = self.message_id
@@ -72,7 +72,7 @@ class Message(BaseModel):
             message_input=data.get("message_input"),
             language=data.get("language"),
             useful=data.get("useful"),
-            created_at=to_myt(data.get("created_at"))
+            created_at=data.get("created_at")
         )
 
 

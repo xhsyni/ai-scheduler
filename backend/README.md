@@ -2,7 +2,7 @@ docker tag scheduler:latest us-west1-docker.pkg.dev/automate-life-scheduler/back
 docker push us-west1-docker.pkg.dev/automate-life-scheduler/backend/scheduler:latest
 
 
-uvicorn routers.main:app --host localhost --port 8000
+uvicorn routers.main:app --host localhost --port 8000 --reload
 
 # Orchestrator Agent (ai_scheduler_orchestrator_main )
 Main Agent for the AI Scheduler that is responsible for receiving the user request and routing them to other sub-agents. It can trigger multiple agents to complete the user's request.

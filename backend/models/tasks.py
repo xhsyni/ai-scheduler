@@ -44,7 +44,7 @@ class Task(BaseModel):
     duration: Optional[int] = Field(default=None)
     reminder: Optional[bool] = Field(default=False)
     status: Optional[str] = Field(default=None)
-    embeddings: Optional[List[int]] = Field(default=[])
+    embeddings: Optional[List[float]] = Field(default=[])
     created_at: datetime = Field(default_factory=now_myt)
     updated_at: datetime = Field(default_factory=now_myt)
 

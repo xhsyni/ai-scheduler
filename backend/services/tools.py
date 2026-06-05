@@ -127,7 +127,7 @@ def register_mcp_tools(mcp):
         end_time:str
     ) -> dict:
         """
-        Check the user's requested task to update to get the task id for update the task 
+        Check the user's requested task to update to get the task id for update the task. It will return the highest hybrid score task id. 
         """
         keywords = previous_task
         embeddings = [-1*1024]

@@ -65,7 +65,7 @@ class DBService:
                 start_time = datetime.strptime(start_time, "%Y-%m-%d")
             if end_time is None:
                 end_time = start_time + timedelta(days=1)
-            else:
+            elif isinstance(end_time, str):
                 end_time = datetime.strptime(end_time, "%Y-%m-%d")
 
             cursor = self.db[self.task_collection].find({
@@ -82,34 +82,42 @@ class DBService:
 
     def get_tasks_by_user_id_and_title(self,keyword,query_embedding,user_id,start_time,end_time=None,limit=10):
         numCandidate = min(limit * 6, 1000)
-        start_date = to_utc(datetime.strptime(start_time, "%Y-%m-%d"))
+        if isinstance(start_time, str):
+            start_date = to_utc(datetime.strptime(start_time, "%Y-%m-%d"))
+        else:
+            start_date = to_utc(start_time)
+            
         if end_time is None:
             end_date = to_utc(start_date + timedelta(days=1))
-        else:
+        elif isinstance(end_time, str):
             end_date = to_utc(datetime.strptime(end_time, "%Y-%m-%d"))
+        else:
+            end_date = to_utc(end_time)
+            
         try:
             if query_embedding and len(query_embedding) > 0:
                 vector_pipeline = [
                     {
                         "$vectorSearch": {
                             "queryVector": query_embedding,
-                            "path": "embedding_vector",
+                            "path": "embeddings",
                             "numCandidates": numCandidate, 
                             "limit": limit, 
-                            "index": "vector_index",
-                            "filter": {
-                                "users.user_id": user_id,
-                                "start_time": {
-                                    "$gte": start_date,
-                                    "$lt": end_date
-                                }
+                            "index": "vector_index"
+                        }
+                    },
+                    {
+                        "$match": {
+                            "users.user_id": user_id,
+                            "start_time": {
+                                "$gte": start_date,
+                                "$lt": end_date
                             }
                         }
                     },
                     {"$addFields": {"score": {"$meta": "vectorSearchScore"}}}
                 ]
-                vector_results = list(self.task_collection.aggregate(vector_pipeline))
-
+                vector_results = list(self.db[self.task_collection].aggregate(vector_pipeline))
             if keyword:
                 if isinstance(keyword, str):
                     keyword = [keyword]
@@ -129,10 +137,11 @@ class DBService:
                     {"$addFields": {"score": {"$meta": "searchScore"}}},
                     {"$match": {"users.user_id": user_id}}
                 ]
-                keyword_results = list(self.task_collection.aggregate(keyword_pipeline))
+                keyword_results = list(self.db[self.task_collection].aggregate(keyword_pipeline))
             return vector_results,keyword_results
-        except:
-            pass
+        except Exception as e:
+            logger.error(f"Error fetching tasks: {e}")
+            return []
 
     def get_task_by_id(self, task_id: str) -> Task:
         try:

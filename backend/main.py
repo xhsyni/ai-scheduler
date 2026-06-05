@@ -1,4 +1,5 @@
 import asyncio
+import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastmcp import FastMCP
@@ -6,6 +7,8 @@ from routers import conversation, task, user
 from services.tools import register_mcp_tools
 from services.scheduler import weekly_memory_updater_loop
 from fastapi.middleware.cors import CORSMiddleware
+
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = os.path.join(os.path.dirname(__file__), "gcp-key.json")
 
 mcp = FastMCP("AI Scheduler MCP")
 register_mcp_tools(mcp)
@@ -26,6 +29,7 @@ async def lifespan(app: FastAPI):
             pass
 
 app = FastAPI(lifespan=lifespan)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],

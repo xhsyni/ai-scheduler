@@ -7,6 +7,16 @@ from utils.timezone import now_myt,safe_parse_tags
 
 db = DBService()
 llm_gen = LLM_GEN()
+
+def flatten_tags(tags):
+    result = []
+    for t in tags:
+        if isinstance(t, list):
+            result.extend(t)
+        else:
+            result.append(t)
+    return result
+
 async def update_all_users_memory():
     try:
         users = db.db[db.user_collection].find({})
@@ -38,23 +48,37 @@ async def update_all_users_memory():
             aggregated_tags = set()
 
             prompt = f"""
-                You are a tag generator for tasks.
+                You are a strict tag extraction system.
 
-                Generate 3–5 relevant tags (more likely adjective, verbs, or noun) that usable for memory based on the title and description. 
-                This generated tags will be stored as memory in the database and used to recommend similar tasks to the user.
-                Strictly do not add any names, locations, terms, dates, times, or numbers.
-                Strictly no "[[" or "]]" or "[" or "]" in the output.
-                
-                Return ONLY one valid JSON list of strings.
+                You MUST follow these rules exactly:
 
-                Example of output (single list):
-                ["work", "urgent", "meeting"]
+                1. Read ALL tasks together as ONE dataset.
+                2. Do NOT generate tags per task.
+                3. Merge all meaning into a single unified tag set.
+                4. Output ONLY 3–5 tags total for the entire dataset.
+                5. Each tag must be a single word or short phrase (no names, no dates, no numbers).
 
-                Tasks:
+                STRICT OUTPUT FORMAT:
+                - Return ONLY a valid JSON array of strings
+                - No explanations
+                - No markdown
+                - No nested lists
+                - No objects
+
+                FORBIDDEN:
+                - [["a", "b"], ["c"]]
+                - {"tags": [...]}
+                - per-task grouping
+
+                GOOD EXAMPLE:
+                ["work", "meeting", "shopping"]
+
+                TASKS:
                 {tasks_memory}
             """
             response = llm_gen.generate_content(prompt)
-            tags = safe_parse_tags(response)
+
+            tags = flatten_tags(safe_parse_tags(response))
 
             print(f"Tags for user {user_id}: {tags}")
             aggregated_tags.update(str(t).strip().lower() for t in tags)

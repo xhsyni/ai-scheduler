@@ -9,8 +9,6 @@ from google.genai import types
 from services.agents.orchestrator import OrchestratorAgent
 from google.cloud import aiplatform
 
-APP_NAME = "ai_scheduler"
-
 PROJECT_ID = "701630160330"
 LOCATION = "us-west1"
 REASONING_ENGINE_ID = "1761831044069195776"
@@ -25,7 +23,7 @@ def _get_runner() -> Runner:
     if _runner is None:
         _runner = Runner(
             agent=OrchestratorAgent(),
-            app_name=APP_NAME,
+            app_name="scheduler",
             session_service=_session_service,
         )
     return _runner

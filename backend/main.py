@@ -44,7 +44,7 @@ def health_check():
 
 @app.get("/")
 def read_root():
-    return {"message": "Hello World"}
+    return {"message": "Server is running"}
 
 app.include_router(user.router)
 app.include_router(task.router)

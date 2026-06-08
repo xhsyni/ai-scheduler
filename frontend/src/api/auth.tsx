@@ -2,6 +2,17 @@ import axios from "axios";
 
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
 
+export async function sendMessageToAgent(content: string, conversationId = "default_conv") {
+    const res = await axios.post(`${API_BASE_URL}/api/chat`, { 
+        content: content, 
+        conversation_id: conversationId,
+        message_input: "text"
+    }, {
+        withCredentials: true 
+    });
+    return res.data; 
+}
+
 export async function registerUser(username: string, email: string, password: string) {
     const res = await axios.post(`${API_BASE_URL}/users/register`, {
         "name": username,

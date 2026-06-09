@@ -7,146 +7,309 @@ import {
   MapPin, BookOpen, Tag, ListChecks, CalendarRange, TimerReset,
 } from "lucide-react";
 import { CogniLogo } from "./CogniLogo";
-import { CalendarView, INITIAL_BLOCKS, type Block } from "./CalendarView";
-import { GroupsView } from "./GroupsView";
+import { CalendarView, INITIAL_BLOCKS, type Block, type Category, type Priority } from "./CalendarView";
+// GroupsView has been removed
+import { getTasks, createTask, updateTask } from "../api/tasks";
+import { showErrorToast } from "../utils/errors";
+import { getConversations, createConversation, getMessages, sendMessage } from "../api/conversations";
+import { CreateTaskModal } from "./CreateTaskModal";
+import { TasksView } from "./TasksView";
+import { toast } from "sonner";
 
-type Workspace = "calendar" | "groups";
+type Workspace = "calendar" | "tasks";
 
-type Proposal = {
-  title: string;
-  tags: string[];
-  location: string;
-  subtasks: string[];
-  slots: { day: string; time: string }[];
-};
+function getStartOfWeek(date: Date) {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+  const monday = new Date(d.setDate(diff));
+  monday.setHours(0, 0, 0, 0);
+  return monday;
+}
 
-const FYP_PROPOSAL: Proposal = {
-  title: "Research FYP Problem Statement",
-  tags: ["Study", "Academic"],
-  location: "Library / Remote",
-  subtasks: [
-    "Research 5 papers a day (1 hour)",
-    "Draft problem statement outline",
-  ],
-  slots: [
-    { day: "Mon", time: "10:00 – 11:00" },
-    { day: "Tue", time: "10:00 – 11:00" },
-    { day: "Wed", time: "14:00 – 15:00" },
-    { day: "Thu", time: "10:00 – 11:00" },
-    { day: "Fri", time: "09:00 – 10:00" },
-  ],
-};
+function formatDateString(d: Date) {
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
 
 export function Dashboard({ name, onLogout }: { name: string; onLogout: () => void }) {
+  const [weekStart, setWeekStart] = useState<Date>(() => getStartOfWeek(new Date()));
   const [prompt, setPrompt] = useState("");
   const [aiOpen, setAiOpen] = useState(true);
   const [workspace, setWorkspace] = useState<Workspace>("calendar");
-  const [messages, setMessages] = useState<{ role: "user" | "ai"; text: string }[]>([
-    { role: "ai", text: `Hi ${name} 👋 Try "Plan my FYP" and I'll structure it across your free slots.` },
-  ]);
+  const [messages, setMessages] = useState<{ role: "user" | "ai"; text: string }[]>([]);
+  const [activeConvId, setActiveConvId] = useState<string | null>(null);
 
-  const [blocks, setBlocks] = useState<Block[]>(INITIAL_BLOCKS);
+  const [dbTasks, setDbTasks] = useState<any[]>([]);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [taskToEdit, setTaskToEdit] = useState<any>(null);
   const [flashIds, setFlashIds] = useState<Set<number>>(new Set());
   const [pulseIds, setPulseIds] = useState<Set<number>>(new Set());
 
-  // Agent state machine
-  const [agentState, setAgentState] = useState<"idle" | "processing" | "proposal" | "approved" | "rejected">("idle");
-  const [proposal, setProposal] = useState<Proposal | null>(null);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [agentState, setAgentState] = useState<"idle" | "processing">("idle");
 
-  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
+  const fetchTasks = async () => {
+    try {
+      const startStr = formatDateString(weekStart);
+      const end = new Date(weekStart.getTime() + 7 * 24 * 60 * 60 * 1000);
+      const endStr = formatDateString(end);
+      const res = await getTasks(startStr, endStr);
+      if (res.status === 200 && res.tasks) {
+        const allTasks: any[] = [];
+        Object.values(res.tasks).forEach((dayTasks: any) => {
+          allTasks.push(...dayTasks);
+        });
+        setDbTasks(allTasks);
 
-  const runAgent = (userText: string) => {
-    setAgentState("processing");
-    setProposal(null);
-    timer.current = setTimeout(() => {
-      setProposal(FYP_PROPOSAL);
-      setAgentState("proposal");
-      setMessages((m) => [...m, { role: "ai", text: `I parsed "${userText}" into 2 subtasks and reserved 5 weekday slots. Review the proposal →` }]);
-    }, 1400);
+        if (taskToEdit) {
+          const freshTask = allTasks.find(t => (t.task_id || t.id) === (taskToEdit.task_id || taskToEdit.id));
+          if (freshTask) {
+            setTaskToEdit(freshTask);
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching tasks:", error);
+    }
   };
 
-  const sendPrompt = (e: React.FormEvent) => {
+  const initConversation = async () => {
+    try {
+      const res = await getConversations();
+      let convId = null;
+      if (res.status === 200 && res.conversations && res.conversations.length > 0) {
+        convId = res.conversations[0].conversation_id;
+      } else {
+        const newConv = await createConversation("My Focus Session");
+        if (newConv.status === 200) {
+          convId = newConv.conversation_id;
+        }
+      }
+
+      if (convId) {
+        setActiveConvId(convId);
+        const msgRes = await getMessages(convId);
+        if (msgRes.status === 200 && msgRes.messages && msgRes.messages.length > 0) {
+          const history = msgRes.messages.map((m: any) => ({
+            role: m.role === "assistant" ? ("ai" as const) : ("user" as const),
+            text: m.content || "",
+          }));
+          setMessages(history);
+        } else {
+          setMessages([
+            { role: "ai", text: `Hi ${name} 👋 Try asking me to schedule a study block or gym session.` }
+          ]);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to initialize conversation:", err);
+    }
+  };
+
+  useEffect(() => {
+    if (name) {
+      initConversation();
+    }
+  }, [name]);
+
+  useEffect(() => {
+    if (name) {
+      fetchTasks();
+    }
+  }, [name, weekStart]);
+
+  const mapTasksToBlocks = (tasksList: any[]): Block[] => {
+    const parsed = tasksList.map((t) => {
+      const startDate = new Date(t.start_time);
+      const mytStartTime = startDate.getTime() + (startDate.getTimezoneOffset() + 480) * 60 * 1000;
+      const sDate = new Date(mytStartTime);
+
+      const endDate = new Date(t.end_time);
+      const mytEndTime = endDate.getTime() + (endDate.getTimezoneOffset() + 480) * 60 * 1000;
+      const eDate = new Date(mytEndTime);
+
+      const targetMidnight = new Date(sDate.getFullYear(), sDate.getMonth(), sDate.getDate()).getTime();
+      const wsMidnight = new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate()).getTime();
+      const msDiff = targetMidnight - wsMidnight;
+      let dayIndex = Math.round(msDiff / (24 * 60 * 60 * 1000));
+      if (dayIndex < 0 || dayIndex > 6) {
+        dayIndex = 0; // fallback safety
+      }
+
+      const startHour = sDate.getHours() + sDate.getMinutes() / 60;
+      const endHour = eDate.getHours() + eDate.getMinutes() / 60;
+
+      return {
+        id: t.task_id || t.id || Math.random(),
+        title: t.title,
+        day: dayIndex,
+        start: startHour,
+        end: endHour,
+        category: (t.category || "Work") as Category,
+        priority: (t.priority || "low") as Priority,
+        focus: t.status === "focus",
+        rawStart: startDate.getTime(),
+        rawEnd: endDate.getTime(),
+      };
+    });
+
+    // Detect conflicts (overlapping time slots) on the fly
+    return parsed.map((b1) => {
+      const hasConflict = parsed.some((b2) => {
+        if (b1.id === b2.id) return false;
+        // Two tasks conflict if they overlap
+        return b1.rawStart < b2.rawEnd && b1.rawEnd > b2.rawStart;
+      });
+      return {
+        id: b1.id,
+        title: b1.title,
+        day: b1.day,
+        start: b1.start,
+        end: b1.end,
+        category: b1.category,
+        priority: b1.priority,
+        focus: b1.focus,
+        hasConflict,
+      };
+    });
+  };
+
+  const blocks = mapTasksToBlocks(dbTasks);
+
+  const focusHours = dbTasks
+    .filter((t) => (t.category === "Focus" || t.status === "focus") && t.start_time && t.end_time)
+    .reduce((acc, t) => {
+      const start = new Date(t.start_time).getTime();
+      const end = new Date(t.end_time).getTime();
+      if (isNaN(start) || isNaN(end)) return acc;
+      return acc + Math.max(0, (end - start) / (1000 * 60 * 60));
+    }, 0);
+
+  const sendPrompt = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!prompt.trim()) return;
+    if (!prompt.trim() || !activeConvId) return;
     const userMsg = prompt.trim();
     setMessages((m) => [...m, { role: "user", text: userMsg }]);
     setPrompt("");
-    runAgent(userMsg);
+    setAgentState("processing");
+
+    try {
+      const res = await sendMessage(activeConvId, userMsg);
+      if (res.status === 200 && res.assistant_message) {
+        setMessages((m) => [
+          ...m,
+          { role: "ai", text: res.assistant_message.content || "" },
+        ]);
+        await fetchTasks();
+      }
+    } catch (error) {
+      console.error("Failed to send message to AI Agent:", error);
+      toast.error("Failed to receive response from AI Agent");
+    } finally {
+      setAgentState("idle");
+    }
   };
 
-  const approveProposal = () => {
-    if (!proposal) return;
-    const dayMap: Record<string, number> = { Mon: 0, Tue: 1, Wed: 2, Thu: 3, Fri: 4, Sat: 5, Sun: 6 };
-    let nextId = Math.max(...blocks.map((b) => b.id)) + 1;
-    const newBlocks: Block[] = proposal.slots.map((s) => {
-      const [startStr, endStr] = s.time.split(" – ");
-      const toH = (t: string) => {
-        const [hh, mm] = t.split(":").map(Number);
-        return hh + mm / 60;
-      };
-      return {
-        id: nextId++,
-        title: proposal.title,
-        day: dayMap[s.day] ?? 0,
-        start: toH(startStr),
-        end: toH(endStr),
-        category: "Study",
-        priority: "high",
-      };
-    });
-    const ids = new Set(newBlocks.map((b) => b.id));
-    setBlocks((b) => [...b, ...newBlocks]);
-    setPulseIds(ids);
-    setAgentState("approved");
-    setMessages((m) => [...m, { role: "ai", text: "✅ Schedule approved and added to your calendar." }]);
-    setTimeout(() => setPulseIds(new Set()), 2200);
-  };
+  const handleBlockMove = async (
+    blockId: string | number,
+    dayIndex: number,
+    startHour: number,
+    endHour: number
+  ) => {
+    const targetTask = dbTasks.find((t) => (t.task_id || t.id) === blockId);
+    if (!targetTask) return;
 
-  const rejectProposal = () => {
-    setAgentState("rejected");
-    setMessages((m) => [...m, { role: "ai", text: "Got it — discarded. Want me to retry with tighter slots?" }]);
-  };
+    const targetDate = new Date(weekStart.getTime());
+    targetDate.setDate(targetDate.getDate() + dayIndex);
 
-  const delayFiveMin = () => {
-    // Shift low/med blocks down by 5 minutes; high stays locked. Flash all shifted.
-    const shifted = new Set<number>();
-    setBlocks((bs) =>
-      bs.map((b) => {
-        if (b.priority === "high") return b;
-        shifted.add(b.id);
-        return { ...b, start: b.start + 5 / 60, end: b.end + 5 / 60 };
-      })
+    const formatTimeOffset = (date: Date, decimalHour: number) => {
+      const target = new Date(date.getTime());
+      let hours = Math.floor(decimalHour);
+      let minutes = Math.round((decimalHour - hours) * 60);
+      if (minutes >= 60) {
+        hours += 1;
+        minutes -= 60;
+      }
+      if (hours >= 24) {
+        target.setDate(target.getDate() + Math.floor(hours / 24));
+        hours = hours % 24;
+      }
+      const yyyy = target.getFullYear();
+      const mm = String(target.getMonth() + 1).padStart(2, "0");
+      const dd = String(target.getDate()).padStart(2, "0");
+      const hh = String(hours).padStart(2, "0");
+      const minStr = String(minutes).padStart(2, "0");
+      return `${yyyy}-${mm}-${dd}T${hh}:${minStr}:00+08:00`;
+    };
+
+    const newStartISO = formatTimeOffset(targetDate, startHour);
+    const newEndISO = formatTimeOffset(targetDate, endHour);
+
+    const taskPayload = {
+      title: targetTask.title,
+      description: targetTask.description,
+      priority: targetTask.priority,
+      category: targetTask.category,
+      location: targetTask.location,
+      link: targetTask.link,
+      start_time: newStartISO,
+      end_time: newEndISO,
+      reminder: targetTask.reminder,
+      status: targetTask.status,
+    };
+
+    const previousTasks = [...dbTasks];
+
+    // Optimistically update the UI tasks state
+    setDbTasks((prev) =>
+      prev.map((t) =>
+        (t.task_id || t.id) === blockId
+          ? { ...t, start_time: newStartISO, end_time: newEndISO }
+          : t
+      )
     );
-    setFlashIds(shifted);
-    setMessages((m) => [...m, { role: "ai", text: "⏳ Dynamic reschedule: shifted low/med items by 5 min. High-priority blocks locked." }]);
-    setTimeout(() => setFlashIds(new Set()), 1800);
+
+    try {
+      const result = await updateTask(String(blockId), taskPayload);
+      if (result.status_code === 400 && result.detail !== "Time conflict") {
+        toast.error(result.detail || "Failed to reschedule task");
+        setDbTasks(previousTasks);
+        return;
+      }
+      toast.success("Task rescheduled successfully!");
+      // Refetch to sync clean details and recheck conflicts
+      fetchTasks();
+    } catch (err: any) {
+      setDbTasks(previousTasks);
+      console.error(err);
+      showErrorToast(err, "Failed to reschedule task");
+    }
   };
 
-     return (
-    <div className="fixed inset-0 h-screen w-screen overflow-hidden flex flex-col text-foreground select-none"> {}
+  return (
+    <div className="fixed inset-0 h-screen w-screen overflow-hidden flex flex-col text-foreground select-none"> { }
       <div className="ambient-bg" />
 
       {/* Top bar */}
-      <header className="w-full shrink-0 border-b border-border bg-[#0d0f14] shadow-[0_4px_30px_rgba(0,0,0,0.5)] z-50"> {}
+      <header className="w-full shrink-0 border-b border-border bg-[#0d0f14] shadow-[0_4px_30px_rgba(0,0,0,0.5)] z-50"> { }
         <div className="flex items-center gap-4 px-6 py-3">
           <CogniLogo size={32} withWordmark />
           <nav className="ml-8 hidden items-center gap-1 md:flex">
             {[
-              { Icon: LayoutDashboard, label: "Overview", ws: null },
               { Icon: CalendarDays, label: "Calendar", ws: "calendar" as const },
-              { Icon: ListTodo, label: "Tasks", ws: null },
+              { Icon: ListTodo, label: "Tasks", ws: "tasks" as const },
             ].map(({ Icon, label, ws }) => {
-              const active = ws !== null && workspace === ws;
+              const active = workspace === ws;
               return (
                 <button
                   key={label}
-                  onClick={() => ws && setWorkspace(ws)}
-                  className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm transition-colors ${
-                    active
+                  onClick={() => setWorkspace(ws)}
+                  className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm transition-colors ${active
                       ? "bg-card text-foreground ring-1 ring-border"
                       : "text-muted-foreground hover:text-foreground"
-                  }`}
+                    }`}
                 >
                   <Icon size={15} /> {label}
                 </button>
@@ -187,14 +350,38 @@ export function Dashboard({ name, onLogout }: { name: string; onLogout: () => vo
 
       <div className="flex gap-4 px-4 py-4" style={{ height: "calc(100vh - 65px)" }}>
         <aside className="hidden w-64 shrink-0 overflow-y-auto lg:block">
-          <LeftPanel name={name} />
+          <LeftPanel name={name} dbTasks={dbTasks} onNewPlan={() => { setTaskToEdit(null); setIsCreateModalOpen(true); }} />
         </aside>
 
         <main className="min-w-0 flex-1">
           {workspace === "calendar" ? (
-            <CalendarView blocks={blocks} flashIds={flashIds} pulseIds={pulseIds} />
+            <CalendarView
+              blocks={blocks}
+              flashIds={flashIds}
+              pulseIds={pulseIds}
+              weekStart={weekStart}
+              onWeekChange={(d) => setWeekStart(d)}
+              onNewPlan={() => { setTaskToEdit(null); setIsCreateModalOpen(true); }}
+              onBlockClick={(id) => {
+                const targetTask = dbTasks.find((t) => (t.task_id || t.id) === id);
+                if (targetTask) {
+                  setTaskToEdit(targetTask);
+                  setIsCreateModalOpen(true);
+                }
+              }}
+              onBlockMove={handleBlockMove}
+            />
           ) : (
-            <GroupsView />
+            <TasksView
+              tasks={dbTasks}
+              weekStart={weekStart}
+              onWeekChange={setWeekStart}
+              onOpenCreateModal={() => { setTaskToEdit(null); setIsCreateModalOpen(true); }}
+              onEditTask={(task) => {
+                setTaskToEdit(task);
+                setIsCreateModalOpen(true);
+              }}
+            />
           )}
         </main>
 
@@ -209,7 +396,7 @@ export function Dashboard({ name, onLogout }: { name: string; onLogout: () => vo
                   <h2 className="text-sm font-semibold">AI Agent Panel</h2>
                   <p className="text-[10px] text-muted-foreground">
                     <span className={`mr-1 inline-block h-1.5 w-1.5 rounded-full ${agentState === "processing" ? "bg-amber-400 animate-pulse" : "bg-primary"}`} />
-                    {agentState === "processing" ? "Processing prompt…" : agentState === "proposal" ? "Awaiting approval" : "Online · learning rhythm"}
+                    {agentState === "processing" ? "Processing prompt…" : "Online · learning rhythm"}
                   </p>
                 </div>
               </div>
@@ -219,13 +406,12 @@ export function Dashboard({ name, onLogout }: { name: string; onLogout: () => vo
             </div>
 
             <div className="mb-3 grid grid-cols-2 gap-2">
-              <MiniStat Icon={Zap} label="Focus" value="4.5h" />
+              <MiniStat Icon={Zap} label="Focus" value={`${focusHours.toFixed(1)}h`} />
               <MiniStat Icon={TrendingUp} label="Energy" value="86" />
             </div>
 
-            {/* Scrollable middle: proposal + chat */}
+            {/* Scrollable middle: processing + chat */}
             <div className="mb-3 flex-1 space-y-3 overflow-y-auto pr-1">
-              {/* Agent proposal card */}
               {agentState === "processing" && (
                 <div className="rounded-xl border border-primary/40 bg-card/40 p-4">
                   <div className="flex items-center gap-2 text-xs">
@@ -242,93 +428,12 @@ export function Dashboard({ name, onLogout }: { name: string; onLogout: () => vo
                 </div>
               )}
 
-              {agentState === "proposal" && proposal && (
-                <div className="rounded-xl border border-primary/50 bg-card/60 p-4 shadow-glow">
-                  <div className="mb-2 flex items-center gap-2">
-                    <Sparkles size={13} className="text-primary" />
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-primary">Proposed Plan</span>
-                  </div>
-
-                  <div className="flex items-start gap-2">
-                    <BookOpen size={14} className="mt-0.5 text-muted-foreground" />
-                    <h3 className="text-sm font-semibold leading-snug">{proposal.title}</h3>
-                  </div>
-
-                  <Field Icon={Tag} label="Tags">
-                    <div className="flex flex-wrap gap-1">
-                      {proposal.tags.map((t) => (
-                        <span key={t} className="rounded-full border border-primary/40 bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
-                          {t}
-                        </span>
-                      ))}
-                    </div>
-                  </Field>
-
-                  <Field Icon={MapPin} label="Location">
-                    <p className="text-xs">{proposal.location}</p>
-                  </Field>
-
-                  <Field Icon={ListChecks} label="Subtasks">
-                    <ul className="space-y-1">
-                      {proposal.subtasks.map((s) => (
-                        <li key={s} className="flex items-start gap-1.5 text-xs">
-                          <CheckCircle2 size={11} className="mt-0.5 text-primary" /> {s}
-                        </li>
-                      ))}
-                    </ul>
-                  </Field>
-
-                  <Field Icon={CalendarRange} label="Scheduled slots">
-                    <ul className="space-y-1">
-                      {proposal.slots.map((s) => (
-                        <li key={s.day} className="flex items-center justify-between rounded-md border border-border/60 bg-background/40 px-2 py-1 text-[11px]">
-                          <span className="font-semibold">{s.day}</span>
-                          <span className="text-muted-foreground">{s.time}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </Field>
-
-                  <div className="mt-3 flex gap-2">
-                    <button
-                      onClick={approveProposal}
-                      className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-gradient-primary px-3 py-2 text-xs font-semibold text-primary-foreground shadow-glow"
-                    >
-                      <CheckCircle2 size={13} /> Approve Schedule
-                    </button>
-                    <button
-                      onClick={rejectProposal}
-                      className="flex items-center justify-center gap-1.5 rounded-lg border border-border bg-card/60 px-3 py-2 text-xs font-semibold text-muted-foreground hover:text-foreground"
-                    >
-                      <XCircle size={13} /> Reject / Edit
-                    </button>
-                  </div>
-
-                  <button
-                    onClick={delayFiveMin}
-                    className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-amber-400/40 bg-amber-400/10 px-3 py-1.5 text-[11px] font-medium text-amber-300 hover:bg-amber-400/15"
-                  >
-                    <TimerReset size={12} /> Delay 5 min (simulate dynamic reschedule)
-                  </button>
-                </div>
-              )}
-
-              {(agentState === "approved" || agentState === "rejected" || agentState === "idle") && (
-                <button
-                  onClick={delayFiveMin}
-                  className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-amber-400/30 bg-amber-400/5 px-3 py-1.5 text-[11px] font-medium text-amber-300 hover:bg-amber-400/15"
-                >
-                  <TimerReset size={12} /> Simulate · Delay 5 minutes
-                </button>
-              )}
-
               {/* Chat history */}
               {messages.map((m, i) => (
                 <div
                   key={i}
-                  className={`max-w-[92%] rounded-2xl px-3 py-2 text-xs ${
-                    m.role === "ai" ? "bg-card text-foreground" : "ml-auto bg-gradient-primary text-primary-foreground"
-                  }`}
+                  className={`max-w-[92%] rounded-2xl px-3 py-2 text-xs ${m.role === "ai" ? "bg-card text-foreground" : "ml-auto bg-gradient-primary text-primary-foreground"
+                    }`}
                 >
                   {m.text}
                 </div>
@@ -362,6 +467,23 @@ export function Dashboard({ name, onLogout }: { name: string; onLogout: () => vo
           </div>
         </aside>
       </div>
+
+      <CreateTaskModal
+        isOpen={isCreateModalOpen}
+        onClose={() => { setIsCreateModalOpen(false); setTaskToEdit(null); }}
+        onTaskCreated={(taskDate) => {
+          if (taskDate) {
+            const taskWeekStart = getStartOfWeek(taskDate);
+            if (taskWeekStart.getTime() !== weekStart.getTime()) {
+              setWeekStart(taskWeekStart);
+              return;
+            }
+          }
+          fetchTasks();
+        }}
+        taskToEdit={taskToEdit}
+        weekStart={weekStart}
+      />
     </div>
   );
 }
@@ -377,28 +499,45 @@ function Field({ Icon, label, children }: { Icon: React.ComponentType<{ size?: n
   );
 }
 
-function LeftPanel({ name }: { name: string }) {
-  const reminders = [
-    { Icon: AlarmClock, title: "Deep work starts soon", time: "in 12 min", tone: "primary" as const },
-    { Icon: Coffee, title: "Hydration break", time: "10:45 am", tone: "muted" as const },
-    { Icon: Plane, title: "Flight check-in opens", time: "Saturday 8am", tone: "accent" as const },
-    { Icon: Clock, title: "Pomodoro ready", time: "Queued ×3", tone: "primary" as const },
-  ];
-  const notifications = [
-    { who: "Lina", text: "moved design sync to 11:30", t: "2m" },
-    { who: "Marcus", text: "accepted Q3 strategy invite", t: "8m" },
-    { who: "AI", text: "auto-shortened your 3pm call", t: "21m" },
-  ];
+function LeftPanel({ name, dbTasks = [], onNewPlan }: { name: string; dbTasks?: any[]; onNewPlan?: () => void }) {
+  const reminders = dbTasks
+    .filter((t) => t.reminder && t.start_time)
+    .map((t) => {
+      const startTime = new Date(t.start_time);
+      const mytStartTime = startTime.getTime() + (startTime.getTimezoneOffset() + 480) * 60 * 1000;
+      const sDate = new Date(mytStartTime);
+      const timeStr = sDate.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+      const dayStr = sDate.toLocaleDateString("en-US", { weekday: "short" });
+      return {
+        Icon: AlarmClock,
+        title: t.title,
+        time: `${dayStr} ${timeStr}`,
+        tone: (t.priority === "high" ? "primary" : t.priority === "med" ? "accent" : "muted") as "primary" | "accent" | "muted",
+      };
+    });
+
+  const notifications = [...dbTasks]
+    .sort((a, b) => new Date(b.created_at || b.start_time).getTime() - new Date(a.created_at || a.start_time).getTime())
+    .slice(0, 3)
+    .map((t) => {
+      const collaborators = t.users || [];
+      const who = collaborators.length > 1 ? collaborators[collaborators.length - 1].name || "Squad" : "AI";
+      return {
+        who,
+        text: `scheduled block "${t.title}"`,
+        t: "Recent",
+      };
+    });
 
   return (
     <div className="flex h-full flex-col gap-4">
       <div className="glass rounded-2xl p-4">
-        <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Sunday · May 17</p>
+        <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Focus Workspace</p>
         <h1 className="mt-1 text-lg font-semibold leading-tight">
           Hi <span className="text-gradient-primary">{name}</span>
         </h1>
-        <p className="mt-1 text-[11px] text-muted-foreground">3 AI-prioritized blocks today</p>
-        <button className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg bg-gradient-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground shadow-glow">
+        <p className="mt-1 text-[11px] text-muted-foreground">{dbTasks.length} plan blocks scheduled</p>
+        <button onClick={onNewPlan} className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg bg-gradient-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground shadow-glow">
           <Plus size={12} /> New Plan
         </button>
       </div>
@@ -409,37 +548,48 @@ function LeftPanel({ name }: { name: string }) {
           <MoreHorizontal size={14} className="text-muted-foreground" />
         </div>
         <ul className="space-y-2">
-          {reminders.map((r, i) => (
-            <li key={i} className="group flex items-start gap-2.5 rounded-lg border border-transparent bg-card/40 p-2 hover:border-border">
-              <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-md ${
-                r.tone === "primary" ? "bg-primary/15 text-primary" :
-                r.tone === "accent" ? "bg-accent/15 text-accent" : "bg-muted text-muted-foreground"
-              }`}>
-                <r.Icon size={13} />
-              </span>
-              <div className="min-w-0">
-                <p className="truncate text-[12px] font-medium">{r.title}</p>
-                <p className="text-[10px] text-muted-foreground">{r.time}</p>
-              </div>
-            </li>
-          ))}
+          {reminders.length === 0 ? (
+            <div className="text-center py-4 text-xs text-muted-foreground">
+              No active reminders
+            </div>
+          ) : (
+            reminders.map((r, i) => (
+              <li key={i} className="group flex items-start gap-2.5 rounded-lg border border-transparent bg-card/40 p-2 hover:border-border">
+                <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-md ${r.tone === "primary" ? "bg-primary/15 text-primary" :
+                    r.tone === "accent" ? "bg-accent/15 text-accent" : "bg-muted text-muted-foreground"
+                  }`}>
+                  <r.Icon size={13} />
+                </span>
+                <div className="min-w-0">
+                  <p className="truncate text-[12px] font-medium">{r.title}</p>
+                  <p className="text-[10px] text-muted-foreground">{r.time}</p>
+                </div>
+              </li>
+            ))
+          )}
         </ul>
       </div>
 
       <div className="glass flex-1 rounded-2xl p-4">
         <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Activity</h3>
         <ul className="space-y-3">
-          {notifications.map((n, i) => (
-            <li key={i} className="flex gap-2.5 text-[11px]">
-              <div className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-gradient-primary text-[10px] font-bold text-primary-foreground">
-                {n.who.charAt(0)}
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="leading-snug"><span className="font-semibold">{n.who}</span> <span className="text-muted-foreground">{n.text}</span></p>
-                <p className="mt-0.5 text-[10px] text-muted-foreground">{n.t} ago</p>
-              </div>
-            </li>
-          ))}
+          {notifications.length === 0 ? (
+            <div className="text-center py-4 text-xs text-muted-foreground">
+              No recent activity
+            </div>
+          ) : (
+            notifications.map((n, i) => (
+              <li key={i} className="flex gap-2.5 text-[11px]">
+                <div className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-gradient-primary text-[10px] font-bold text-primary-foreground">
+                  {n.who.charAt(0)}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="leading-snug"><span className="font-semibold">{n.who}</span> <span className="text-muted-foreground">{n.text}</span></p>
+                  <p className="mt-0.5 text-[10px] text-muted-foreground">{n.t}</p>
+                </div>
+              </li>
+            ))
+          )}
         </ul>
       </div>
     </div>

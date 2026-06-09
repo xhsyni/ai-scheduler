@@ -57,6 +57,14 @@ class DBService:
         except Exception as e:
             logger.error(f"Error fetching user: {e}")
             return None 
+
+    def get_all_users(self) -> list[User]:
+        try:
+            cursor = self.db[self.user_collection].find()
+            return [User.from_json(doc) for doc in cursor]
+        except Exception as e:
+            logger.error(f"Error fetching all users: {e}")
+            return []
     
     # Tasks Database Functions
     def get_tasks_by_user_id_and_date(self, user_id: str, start_time, end_time=None) -> list[Task]:
@@ -153,13 +161,15 @@ class DBService:
             logger.error(f"Error fetching task: {e}")
             return None 
 
-    def insert_tasks(self, tasks: list[Task]):
+    def insert_tasks(self, tasks: list[Task]) -> list[str]:
         try:
             task_dicts = [task.to_json() for task in tasks]
-            self.db[self.task_collection].insert_many(task_dicts)
+            result = self.db[self.task_collection].insert_many(task_dicts)
             logger.info(f"Inserted {len(tasks)} tasks into the database.")
+            return [str(inserted_id) for inserted_id in result.inserted_ids]
         except Exception as e:
             logger.error(f"Error inserting tasks: {e}")
+            return []
 
     def user_exists_in_task(self, task_id: str, user_id: str) -> bool:
         try:
@@ -242,6 +252,14 @@ class DBService:
             return True
         except Exception as e:
             logger.error(f"Error deleting user from task: {e}")
+            return False
+
+    def delete_task(self, task_id: str) -> bool:
+        try:
+            result = self.db[self.task_collection].delete_one({"_id": ObjectId(task_id)})
+            return result.deleted_count > 0
+        except Exception as e:
+            logger.error(f"Error deleting task: {e}")
             return False
 
     # Conversation Database Functions

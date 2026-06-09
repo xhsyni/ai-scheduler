@@ -1,8 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AuthScreen } from "@/components/AuthScreen";
 import { Dashboard } from "@/components/Dashboard";
 import { getMe } from "@/api/auth";
+import Cookies from "js-cookie";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -18,14 +19,38 @@ export const Route = createFileRoute("/")({
 
 function App() {
   const [user, setUser] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  if (!user) {
-    getMe().then((res) => {
-      setUser(res.user.name);
-    });
+  useEffect(() => {
+    getMe()
+      .then((res) => {
+        setUser(res.user.name);
+      })
+      .catch((err) => {
+        console.error("Not authenticated:", err);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      </div>
+    );
   }
 
-  return user
-    ? <Dashboard name={user} onLogout={() => setUser(null)} />
-    : <AuthScreen onAuthed={setUser} />;
+  return user ? (
+    <Dashboard
+      name={user}
+      onLogout={() => {
+        setUser(null);
+        Cookies.remove("access_token");
+      }}
+    />
+  ) : (
+    <AuthScreen onAuthed={setUser} />
+  );
 }

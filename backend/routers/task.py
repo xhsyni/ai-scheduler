@@ -6,7 +6,10 @@ from controllers.task import (
     get_tasks_by_date as controller_get_tasks_by_date, 
     update_task as controller_update_task, 
     add_user_to_task as controller_add_user_to_task,
-    update_user_role as controller_update_user_role, delete_user_from_task as controller_delete_user_from_task)
+    update_user_role as controller_update_user_role, 
+    delete_user_from_task as controller_delete_user_from_task,
+    delete_task as controller_delete_task
+)
 from models.tasks import Task
 from pydantic import BaseModel,Field, model_validator
 from typing import Optional
@@ -61,3 +64,43 @@ async def update_user_role(task_id:str,user_id:str,new_role:str,current_user: An
 async def delete_user_from_task(task_id:str,user_id:str,current_user: Annotated[dict, Depends(get_current_user)]):
     response = await controller_delete_user_from_task(task_id,user_id,current_user)
     return response
+
+@router.delete("/delete-task/{task_id}")
+async def delete_task(task_id:str,current_user: Annotated[dict, Depends(get_current_user)]):
+    response = await controller_delete_task(task_id,current_user)
+    return response
+
+@router.get("/groups/overlay")
+async def get_groups_overlay(week_start: str, current_user: Annotated[dict, Depends(get_current_user)]):
+    from controllers.task import get_groups_overlay as controller_get_groups_overlay
+    response = await controller_get_groups_overlay(current_user, week_start)
+    return response
+
+class LockInGroupTaskModel(BaseModel):
+    title: str
+    start_time: str
+    end_time: str
+    location: Optional[str] = None
+
+@router.post("/groups/lock-in")
+async def lock_in_group_task(payload: LockInGroupTaskModel, current_user: Annotated[dict, Depends(get_current_user)]):
+    from controllers.task import lock_in_group_task as controller_lock_in_group_task
+    response = await controller_lock_in_group_task(
+        current_user,
+        payload.title,
+        payload.start_time,
+        payload.end_time,
+        payload.location
+    )
+    return response
+
+@router.get("/check-conflict")
+async def check_task_conflict(
+    start_time: str,
+    end_time: str,
+    task_id: Optional[str] = None,
+    current_user: Annotated[dict, Depends(get_current_user)] = None
+):
+    from controllers.task import check_task_conflict as controller_check_task_conflict
+    response = await controller_check_task_conflict(start_time, end_time, task_id, current_user)
+    return response

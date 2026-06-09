@@ -2,9 +2,20 @@ from sentence_transformers import SentenceTransformer
 import numpy as np
 
 class Similarity:
+    _instance = None
+
+    def __new__(cls, *args, **kwargs):
+        if not cls._instance:
+            cls._instance = super(Similarity, cls).__new__(cls, *args, **kwargs)
+            cls._instance._initialized = False
+        return cls._instance
+
     def __init__(self):
+        if self._initialized:
+            return
         self.model_name = "thenlper/gte-large"
         self.model = SentenceTransformer(self.model_name)
+        self._initialized = True
 
     def encode(self, sentences):
         if isinstance(sentences, str):

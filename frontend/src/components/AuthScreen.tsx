@@ -4,6 +4,8 @@ import { CogniLogo } from "./CogniLogo";
 import { useDispatch } from "react-redux";
 import { registerUser, loginUser } from "../redux/auth";
 import Cookies from "js-cookie";
+import { toast } from "sonner";
+import { showErrorToast } from "@/utils/errors";
 
 type Mode = "login" | "register";
 
@@ -26,22 +28,27 @@ export function AuthScreen({ onAuthed }: { onAuthed: (name: string) => void }) {
         }
         const result = await dispatch(registerUser({ username: name, email, password })).unwrap();
         if (result.status_code === 200) {
-          setMode("login")
+          toast.success("Account created successfully! Please sign in.");
+          setMode("login");
           setEmail("");
           setPassword("");
           setConfirmPassword("");
           setName("");
+        } else {
+          toast.error(result.detail || "Registration failed");
         }
       }
       if (mode === "login") {
         const result = await dispatch(loginUser({ email, password })).unwrap();
         Cookies.set("access_token", result.access_token);
         if (document.cookie.includes("access_token")) {
+          toast.success("Signed in successfully!");
           onAuthed(email);
         }
       }
     } catch (error) {
-      console.error("Registration failed:", error);
+      console.error("Authentication failed:", error);
+      showErrorToast(error, "Authentication failed");
     }
   };
 

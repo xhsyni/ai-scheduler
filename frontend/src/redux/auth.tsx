@@ -3,21 +3,29 @@ import { registerUser as registerUserApi, loginUser as loginUserApi } from "../a
 
 export const registerUser = createAsyncThunk(
     "users/register",
-    async ({ username, email, password }: { username: string, email: string, password: string }) => {
-        const res = await registerUserApi(username, email, password);
-        console.log(res)
-        return res;
+    async ({ username, email, password }: { username: string, email: string, password: string }, { rejectWithValue }) => {
+        try {
+            const res = await registerUserApi(username, email, password);
+            console.log(res);
+            return res;
+        } catch (err: any) {
+            return rejectWithValue(err.response?.data?.detail || err.message || "Registration failed");
+        }
     }
-)
+);
 
 export const loginUser = createAsyncThunk(
     "users/login",
-    async ({ email, password }: { email: string, password: string }) => {
-        const res = await loginUserApi(email, password);
-        console.log(res)
-        return res;
+    async ({ email, password }: { email: string, password: string }, { rejectWithValue }) => {
+        try {
+            const res = await loginUserApi(email, password);
+            console.log(res);
+            return res;
+        } catch (err: any) {
+            return rejectWithValue(err.response?.data?.detail || err.message || "Login failed");
+        }
     }
-)
+);
 
 interface AuthState {
     isAuthenticated: boolean;
@@ -49,7 +57,7 @@ const authSlice = createSlice({
             .addCase(registerUser.rejected, (state, action) => {
                 state.isAuthenticated = false;
                 state.user = null;
-                state.error = action.error.message || "Registration failed";
+                state.error = (action.payload as string) || action.error.message || "Registration failed";
             })
             .addCase(loginUser.fulfilled, (state, action) => {
                 state.isAuthenticated = true;
@@ -59,7 +67,7 @@ const authSlice = createSlice({
             .addCase(loginUser.rejected, (state, action) => {
                 state.isAuthenticated = false;
                 state.user = null;
-                state.error = action.error.message || "Login failed";
+                state.error = (action.payload as string) || action.error.message || "Login failed";
             });
     }
 });

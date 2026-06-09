@@ -1,3 +1,4 @@
+docker build -t scheduler:latest .
 docker tag scheduler:latest us-west1-docker.pkg.dev/automate-life-scheduler/backend/scheduler:latest
 docker push us-west1-docker.pkg.dev/automate-life-scheduler/backend/scheduler:latest
 

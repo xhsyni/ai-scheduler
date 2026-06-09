@@ -72,8 +72,9 @@ async def run_agent(
         ):
             if event.is_final_response() and event.content and event.content.parts:
                 response_text = event.content.parts[0].text or ""
+        print(f"[agent_runner] Final response: {response_text}")
     except Exception as exc:
         print(f"[agent_runner] Agent run failed: {exc}")
-        return "Sorry, I ran into an issue processing your request. Please try again."
+        return f"Sorry, I ran into an issue processing your request. Please try again. {exc}"
 
-    return response_text or "I wasn't able to process that. Could you rephrase?"
+    return response_text or f"I wasn't able to process that. Could you rephrase?"

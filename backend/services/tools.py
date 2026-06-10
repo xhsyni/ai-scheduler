@@ -4,6 +4,7 @@ from models.tasks import Task, GroupTask
 from utils.timezone import to_myt, now_myt
 from typing import Optional
 from utils.normalize import calculate_hybrid
+from datetime import datetime
 
 db = DBService()
 
@@ -59,11 +60,15 @@ def register_mcp_tools(mcp):
         start_time and end_time can be required in the strict format of (YYYY-MM-DD T HH:MM:SS)
         Eg. "2026-05-28T15:30:00"
         """
-        temp_task = Task(
-            start_time = start_time,
-            end_time=end_time
+        start_dt = datetime.fromisoformat(start_time)
+        end_dt = datetime.fromisoformat(end_time)
+
+        conflicts = _check_conflict_tasks(
+            user_ids,
+            start_dt,
+            end_dt
         )
-        conflicts = _check_conflict_tasks(temp_task,user_ids)
+        
         return conflicts
 
     @mcp.tool()
@@ -203,9 +208,22 @@ def register_mcp_tools(mcp):
         """
         Get the user's memory based on the user_id.
         """
+
+        if isinstance(user_ids, str):
+            user_ids = [user_ids]
+
         user_tags = []
-        for user in user_ids:
-            user = db.get_user_by_id(user)
-            if user.tags not in user_tags:
-                user_tags.append(user.tags)
-        return user_tags 
+
+        for uid in user_ids:
+            user = db.get_user_by_id(uid)
+
+            if user is None:
+                continue
+
+            if getattr(user, "tags", None):
+                if user.tags not in user_tags:
+                    user_tags.append(user.tags)
+
+        return user_tags
+
+    

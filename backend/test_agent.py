@@ -1,75 +1,23 @@
-import requests
-from google.oauth2 import service_account
-from google.auth.transport.requests import Request
+import vertexai
+from vertexai import agent_engines
 
-KEY_PATH = "gcp-key.json"
-
-RESOURCE_NAME = (
-    "projects/701630160330/"
-    "locations/us-west1/"
-    "reasoningEngines/1761831044069195776"
+vertexai.init(
+    project="automate-life-scheduler",
+    location="us-west1",
 )
 
-USER_ID = "u_123"
-
-credentials = service_account.Credentials.from_service_account_file(
-    KEY_PATH,
-    scopes=["https://www.googleapis.com/auth/cloud-platform"],
+agent_engine = agent_engines.get(
+    "projects/701630160330/locations/us-west1/reasoningEngines/3401563520897122304"
 )
-credentials.refresh(Request())
 
-headers = {
-    "Authorization": f"Bearer {credentials.token}",
-    "Content-Type": "application/json",
-}
+USER_ID = "6a26ebd93512c2f7136bb51f"
 
-base_url = f"https://us-west1-aiplatform.googleapis.com/v1/{RESOURCE_NAME}:streamQuery?alt=sse"
+for event in agent_engine.stream_query(
+    user_id=USER_ID,
+    message=f"""
+Create a meeting tomorrow at 3pm for 1 hour.
 
-
-# 1. create session first
-create_payload = {
-    "classMethod": "create_session",
-    "input": {
-        "user_id": USER_ID,
-        "state": {
-            "user_id": USER_ID
-        }
-    }
-}
-
-create_res = requests.post(base_url, headers=headers, json=create_payload, stream=True)
-
-print("CREATE STATUS:", create_res.status_code)
-
-session_id = None
-
-for line in create_res.iter_lines():
-    if line:
-        text = line.decode("utf-8")
-        print(text)
-
-        if '"id"' in text:
-            import json
-            data = json.loads(text.replace("data: ", ""))
-            session_id = data.get("id")
-
-print("SESSION ID:", session_id)
-
-
-# 2. stream query
-query_payload = {
-    "classMethod": "stream_query",
-    "input": {
-        "user_id": USER_ID,
-        "session_id": session_id,
-        "message": "hello"
-    }
-}
-
-query_res = requests.post(base_url, headers=headers, json=query_payload, stream=True)
-
-print("QUERY STATUS:", query_res.status_code)
-
-for line in query_res.iter_lines():
-    if line:
-        print(line.decode("utf-8"))
+user_id={USER_ID}
+"""
+):
+    print(event)

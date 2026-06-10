@@ -3,43 +3,79 @@ ADK Agent Runner — manages per-conversation sessions and streams the
 OrchestratorAgent response for a given user message.
 """
 
+# import os
+
+# os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "True"
+# os.environ["GOOGLE_CLOUD_PROJECT"] = "701630160330"
+# os.environ["GOOGLE_CLOUD_LOCATION"] = "us-west1"
+
+# print("VERTEX MODE =", os.getenv("GOOGLE_GENAI_USE_VERTEXAI"))
+# print("PROJECT =", os.getenv("GOOGLE_CLOUD_PROJECT"))
+# print("LOCATION =", os.getenv("GOOGLE_CLOUD_LOCATION"))
+
+# from google.genai import types
+# from google.adk.runners import Runner
+# from google.adk.sessions import InMemorySessionService
+
+# from services.agents.orchestrator import OrchestratorAgent
+
+# APP_NAME = "ai_scheduler"
+
+# _session_service = InMemorySessionService()
+# _runner: Runner | None = None
+
+# PROJECT_ID = "701630160330"
+# LOCATION = "us-west1"
+# REASONING_ENGINE_ID = 1761831044069195776
+# RESOURCE_NAME = (
+#     f"projects/701630160330/locations/us-west1/reasoningEngines/1761831044069195776"
+# )
+
 import os
+import json
+import requests
 
-os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "True"
-os.environ["GOOGLE_CLOUD_PROJECT"] = "701630160330"
-os.environ["GOOGLE_CLOUD_LOCATION"] = "us-west1"
+from google.oauth2 import service_account
+from google.auth.transport.requests import Request
 
-print("VERTEX MODE =", os.getenv("GOOGLE_GENAI_USE_VERTEXAI"))
-print("PROJECT =", os.getenv("GOOGLE_CLOUD_PROJECT"))
-print("LOCATION =", os.getenv("GOOGLE_CLOUD_LOCATION"))
-
-from google.genai import types
-from google.adk.runners import Runner
-from google.adk.sessions import InMemorySessionService
-
-from services.agents.orchestrator import OrchestratorAgent
-
-APP_NAME = "ai_scheduler"
-
-_session_service = InMemorySessionService()
-_runner: Runner | None = None
+KEY_PATH = os.path.join(
+    os.path.dirname(__file__),
+    "..",
+    "gcp-key.json"
+)
 
 PROJECT_ID = "701630160330"
 LOCATION = "us-west1"
-REASONING_ENGINE_ID = 1761831044069195776
+REASONING_ENGINE_ID = "3401563520897122304"
+
 RESOURCE_NAME = (
-    f"projects/701630160330/locations/us-west1/reasoningEngines/1761831044069195776"
+    f"projects/{PROJECT_ID}/locations/{LOCATION}"
+    f"/reasoningEngines/{REASONING_ENGINE_ID}"
 )
 
-def _get_runner() -> Runner:
-    global _runner
-    if _runner is None:
-        _runner = Runner(
-            agent=OrchestratorAgent(),
-            app_name=APP_NAME,
-            session_service=_session_service,
-        )
-    return _runner
+BASE_URL = (
+    f"https://{LOCATION}-aiplatform.googleapis.com/v1/"
+    f"{RESOURCE_NAME}:streamQuery?alt=sse"
+)
+
+
+def get_access_token():
+    credentials = service_account.Credentials.from_service_account_file(
+        KEY_PATH,
+        scopes=["https://www.googleapis.com/auth/cloud-platform"],
+    )
+    credentials.refresh(Request())
+    return credentials.token
+
+# def _get_runner() -> Runner:
+#     global _runner
+#     if _runner is None:
+#         _runner = Runner(
+#             agent=OrchestratorAgent(),
+#             app_name=APP_NAME,
+#             session_service=_session_service,
+#         )
+#     return _runner
 
 
 async def run_agent(
@@ -48,52 +84,83 @@ async def run_agent(
     conversation_id: str,
     message: str,
 ) -> str:
-    """
-    Run the orchestrator agent for a single user turn.
+    token = get_access_token()
 
-    - Reuses the existing ADK session for this conversation_id so the agent
-      has full conversation memory across multiple messages.
-    - The user_id and user_name are stored in session state so the agent can
-      reference them in its instruction template and pass them to MCP tools.
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+    }
 
-    Returns the agent's final text response, or a fallback string on failure.
-    """
-    runner = _get_runner()
+    payload = {
+    "classMethod": "stream_query",
+    "input": {
+        "user_id": user_id,
+        "message": f"""
+{message}
 
-    # Reuse the session for this conversation so history is maintained.
-    session = await _session_service.get_session(
-        app_name=APP_NAME,
-        user_id=user_id,
-        session_id=conversation_id,
-    )
-    if session is None:
-        session = await _session_service.create_session(
-            app_name=APP_NAME,
-            user_id=user_id,
-            session_id=conversation_id,
-            state={"user_id": user_id, "user_name": user_name},
+user_id={user_id}
+user_name={user_name}
+conversation_id={conversation_id}
+"""
+    }
+}
+
+    try:
+        res = requests.post(
+            BASE_URL,
+            headers=headers,
+            json=payload,
+            stream=True,
+            timeout=90,
         )
 
-    content = types.Content(
-        role="user",
-        parts=[types.Part(text=message)],
-    )
+        if res.status_code != 200:
+            print("[agent_runner] Vertex error:", res.status_code, res.text)
+            return "Agent service is temporarily unavailable."
 
-    response_text = ""
-    try:
-        async for event in runner.run_async(
-            user_id=user_id,
-            session_id=conversation_id,
-            new_message=content,
-        ):
-            if event.is_final_response() and event.content and event.content.parts:
-                response_text = event.content.parts[0].text or ""
-        print(f"[agent_runner] Final response: {response_text}")
+        final_text = ""
+
+        print("[STATUS]", res.status_code)
+        print("[HEADERS]", res.headers)
+
+        for line in res.iter_lines(decode_unicode=True):
+            if not line:
+                continue
+
+            print("[RAW LINE]", line)
+
+            if line.startswith("data: "):
+                data = line.replace("data: ", "", 1)
+            else:
+                data = line
+
+            try:
+                event = json.loads(data)
+            except Exception as e:
+                print("[JSON ERROR]", e)
+                continue
+
+            print("[EVENT]", event)
+
+            contents = [
+                event.get("content"),
+                event.get("output", {}).get("content"),
+                event.get("result", {}).get("content"),
+            ]
+
+            for content in contents:
+                if not content:
+                    continue
+
+                parts = content.get("parts", [])
+
+                for part in parts:
+                    if "text" in part:
+                        final_text += part["text"]
+
+        print("[agent_runner] Final response:", final_text)
+        return final_text or "I wasn't able to process that."
+
     except Exception as exc:
-        print(f"[agent_runner] Agent run failed: {exc}")
-        return (
-                "Demo Mode: AI reasoning is temporarily unavailable. "
-                "You can still create tasks, view schedules, and manage calendar blocks."
-            )
-
-    return response_text or f"I wasn't able to process that. Could you rephrase?"
+        print("[agent_runner] Agent run failed:", exc)
+        return "Agent service is temporarily unavailable."

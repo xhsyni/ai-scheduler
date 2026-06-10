@@ -83,7 +83,7 @@ Two Cases occur:
             model=MODEL_NAME,
             description=description_text,
             instruction=instruction_text,
-            # No direct MCP tools — the orchestrator routes; sub-agents act.
+            # No direct MCP tools — the strator routes; sub-agents act.
             sub_agents=[
                 calendar_scheduler_agent,
                 travel_agent,

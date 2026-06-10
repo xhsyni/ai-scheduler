@@ -10,29 +10,47 @@ from fastapi.middleware.cors import CORSMiddleware
 
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = os.path.join(os.path.dirname(__file__), "gcp-key.json")
 
+print("VERTEX:", os.getenv("GOOGLE_GENAI_USE_VERTEXAI"))
+print("PROJECT:", os.getenv("GOOGLE_CLOUD_PROJECT"))
+print("LOCATION:", os.getenv("GOOGLE_CLOUD_LOCATION"))
+
 mcp = FastMCP("AI Scheduler MCP")
 register_mcp_tools(mcp)
 mcp_app = mcp.http_app(path="/")
 
+#@asynccontextmanager
+# async def lifespan(app: FastAPI):
+#     # Start weekly memory updater loop as a background task
+#     # scheduler_task = asyncio.create_task(weekly_memory_updater_loop())
+#     try:
+#         async with mcp_app.lifespan(app):
+#             yield
+#     finally:
+#         scheduler_task.cancel()
+#         try:
+#             await scheduler_task
+#         except asyncio.CancelledError:
+#             pass
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Start weekly memory updater loop as a background task
-    scheduler_task = asyncio.create_task(weekly_memory_updater_loop())
+    # scheduler_task = asyncio.create_task(
+    #     weekly_memory_updater_loop()
+    # )
+
     try:
         async with mcp_app.lifespan(app):
             yield
     finally:
-        scheduler_task.cancel()
-        try:
-            await scheduler_task
-        except asyncio.CancelledError:
-            pass
+        pass
 
 app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+    "http://localhost:8080",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

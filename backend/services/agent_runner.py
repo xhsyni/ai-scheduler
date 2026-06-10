@@ -3,9 +3,19 @@ ADK Agent Runner — manages per-conversation sessions and streams the
 OrchestratorAgent response for a given user message.
 """
 
+import os
+
+os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "True"
+os.environ["GOOGLE_CLOUD_PROJECT"] = "701630160330"
+os.environ["GOOGLE_CLOUD_LOCATION"] = "us-west1"
+
+print("VERTEX MODE =", os.getenv("GOOGLE_GENAI_USE_VERTEXAI"))
+print("PROJECT =", os.getenv("GOOGLE_CLOUD_PROJECT"))
+print("LOCATION =", os.getenv("GOOGLE_CLOUD_LOCATION"))
+
+from google.genai import types
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
-from google.genai import types
 
 from services.agents.orchestrator import OrchestratorAgent
 
@@ -14,6 +24,12 @@ APP_NAME = "ai_scheduler"
 _session_service = InMemorySessionService()
 _runner: Runner | None = None
 
+PROJECT_ID = "701630160330"
+LOCATION = "us-west1"
+REASONING_ENGINE_ID = 1761831044069195776
+RESOURCE_NAME = (
+    f"projects/701630160330/locations/us-west1/reasoningEngines/1761831044069195776"
+)
 
 def _get_runner() -> Runner:
     global _runner
@@ -75,6 +91,9 @@ async def run_agent(
         print(f"[agent_runner] Final response: {response_text}")
     except Exception as exc:
         print(f"[agent_runner] Agent run failed: {exc}")
-        return f"Sorry, I ran into an issue processing your request. Please try again. {exc}"
+        return (
+                "Demo Mode: AI reasoning is temporarily unavailable. "
+                "You can still create tasks, view schedules, and manage calendar blocks."
+            )
 
     return response_text or f"I wasn't able to process that. Could you rephrase?"

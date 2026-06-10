@@ -67,7 +67,7 @@ async def update_all_users_memory():
 
                 FORBIDDEN:
                 - [["a", "b"], ["c"]]
-                - {"tags": [...]}
+                - {{"tags": [...]}}
                 - per-task grouping
 
                 GOOD EXAMPLE:

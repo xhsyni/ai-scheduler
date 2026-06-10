@@ -29,14 +29,15 @@ export async function loginUser(email: string, password: string) {
     params.append("password", password);
 
     const res = await axios.post(
-        `${API_BASE_URL}/users/login`,
-        params,
-        {
-            headers: {
-                "Content-Type": "application/x-www-form-urlencoded",
-            },
-        }
-    );
+    `${API_BASE_URL}/users/login`,
+    params,
+    {
+        headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+        },
+        withCredentials: true,
+    }
+);
 
     return res.data;
 }

@@ -1,14 +1,16 @@
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
-from fastapi.security import OAuth2PasswordBearer
 import bcrypt
 import jwt
 from fastapi.responses import JSONResponse
-from fastapi import HTTPException, status
+from fastapi import Depends, HTTPException, status, Request
 from fastapi import Cookie
 from services.db import DBService
 from models.users import User
+from fastapi.security import OAuth2PasswordBearer
 import re 
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/users/login", auto_error=False)
 
 db = DBService()
 
@@ -75,28 +77,41 @@ async def register(name: str, email: str, password: str):
         password=_hashed_password(password)
     )
     db.insert_user(user)
-    return HTTPException(
-        status_code=status.HTTP_200_OK,
-        detail="User registered successfully"
-    )
+    return {"message": "User registered successfully"}
     
-async def get_current_user(access_token:str = Cookie(default=None)):
+async def get_current_user(
+    request: Request,
+    access_token: str | None = Depends(oauth2_scheme)
+):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
-    if access_token is None:
+
+    # 1. Try Authorization header first
+    token = access_token
+
+    # 2. If no Authorization header, try HttpOnly cookie
+    if not token:
+        token = request.cookies.get("access_token")
+
+    if not token:
         raise credentials_exception
+
     try:
-        payload = jwt.decode(access_token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         email: str = payload.get("sub")
+
         if email is None:
             raise credentials_exception
+
     except jwt.InvalidTokenError:
         raise credentials_exception
+
     user = db.get_user_by_email(email)
+
     if user is None:
         raise credentials_exception
+
     return user
-    

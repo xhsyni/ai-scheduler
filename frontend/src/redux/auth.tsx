@@ -1,5 +1,17 @@
 import { createSlice, createAsyncThunk, PayloadAction } from "@reduxjs/toolkit";
 import { registerUser as registerUserApi, loginUser as loginUserApi } from "../api/auth";
+import axios from "axios";
+import Cookies from "js-cookie";
+
+axios.interceptors.request.use((config) => {
+    const token = Cookies.get("access_token");
+
+    if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+    }
+
+    return config;
+});
 
 export const registerUser = createAsyncThunk(
     "users/register",

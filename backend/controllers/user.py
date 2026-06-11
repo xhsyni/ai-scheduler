@@ -49,8 +49,8 @@ async def login(email,password):
         key="access_token",
         value=access_token,
         httponly=True,
-        secure=False,
-        samesite="lax"
+        secure=True,
+        samesite="none"
     )
     return response
 

@@ -1,16 +1,17 @@
 import axios from "axios";
+import Cookies from "js-cookie";
 
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
 
 export async function sendMessageToAgent(content: string, conversationId = "default_conv") {
-    const res = await axios.post(`${API_BASE_URL}/api/chat`, { 
-        content: content, 
+    const res = await axios.post(`${API_BASE_URL}/api/chat`, {
+        content: content,
         conversation_id: conversationId,
         message_input: "text"
     }, {
-        withCredentials: true 
+        withCredentials: true
     });
-    return res.data; 
+    return res.data;
 }
 
 export async function registerUser(username: string, email: string, password: string) {
@@ -29,15 +30,15 @@ export async function loginUser(email: string, password: string) {
     params.append("password", password);
 
     const res = await axios.post(
-    `${API_BASE_URL}/users/login`,
-    params,
-    {
-        headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
-        },
-        withCredentials: true,
-    }
-);
+        `${API_BASE_URL}/users/login`,
+        params,
+        {
+            headers: {
+                "Content-Type": "application/x-www-form-urlencoded",
+            },
+            withCredentials: true,
+        }
+    );
 
     return res.data;
 }

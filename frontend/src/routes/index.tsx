@@ -22,6 +22,11 @@ function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const token = Cookies.get("access_token");
+    if (!token) {
+      setLoading(false);
+      return;
+    }
     getMe()
       .then((res) => {
         setUser(res.user.name);

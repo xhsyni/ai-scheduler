@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastmcp import FastMCP
 from routers import conversation, task, user
 from services.tools import register_mcp_tools
-from services.scheduler import weekly_memory_updater_loop
+from services.scheduler import weekly_memory_updater_loop, reminder_check_loop
 from fastapi.middleware.cors import CORSMiddleware
 
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = os.path.join(os.path.dirname(__file__), "gcp-key.json")
@@ -37,12 +37,17 @@ async def lifespan(app: FastAPI):
     # scheduler_task = asyncio.create_task(
     #     weekly_memory_updater_loop()
     # )
+    reminder_task = asyncio.create_task(reminder_check_loop())
 
     try:
         async with mcp_app.lifespan(app):
             yield
     finally:
-        pass
+        reminder_task.cancel()
+        try:
+            await reminder_task
+        except asyncio.CancelledError:
+            pass
 
 app = FastAPI(lifespan=lifespan)
 

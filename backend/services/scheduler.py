@@ -99,3 +99,59 @@ async def weekly_memory_updater_loop():
     while True:
         await update_all_users_memory()
         await asyncio.sleep(WEEK_SECONDS)
+
+
+async def reminder_check_loop():
+    """
+    Every 60 seconds, check for tasks starting within the next 10 minutes
+    that have reminder=True and haven't been sent yet. Send an email and
+    mark reminder_sent=True.
+    """
+    from services.email_service import send_reminder_email
+
+    POLL_INTERVAL = 60   # seconds
+    WINDOW_MINUTES = 10  # remind 10 minutes before
+
+    while True:
+        try:
+            now = now_myt()
+            window_end = now + timedelta(minutes=WINDOW_MINUTES)
+
+            tasks = db.get_upcoming_reminder_tasks(now, window_end)
+
+            for task_doc in tasks:
+                task_id = str(task_doc["_id"])
+                title = task_doc.get("title", "Untitled Task")
+                start_time = task_doc.get("start_time")
+                description = task_doc.get("description")
+                location = task_doc.get("location")
+                users = task_doc.get("users", [])
+
+                # Send to each user associated with this task
+                for user_entry in users:
+                    user_id = user_entry.get("user_id")
+                    if not user_id:
+                        continue
+
+                    user = db.get_user_by_id(user_id)
+                    if not user or not user.email:
+                        continue
+
+                    success = send_reminder_email(
+                        to_email=user.email,
+                        task_title=title,
+                        start_time=start_time,
+                        description=description,
+                        location=location,
+                    )
+
+                    if success:
+                        print(f"📧 Reminder sent to {user.email} for '{title}'")
+
+                # Mark as sent regardless (avoid retry-spamming on partial failure)
+                db.mark_reminder_sent(task_id)
+
+        except Exception as e:
+            print(f"Error in reminder check loop: {e}")
+
+        await asyncio.sleep(POLL_INTERVAL)

@@ -334,4 +334,36 @@ class DBService:
     #     except Exception as e:
     #         logger.error(f"Error fetching tasks: {e}")
     #         return []
-    
+
+    # Reminder Database Functions
+    def get_upcoming_reminder_tasks(self, now: datetime, window_end: datetime) -> list[dict]:
+        """
+        Find tasks where reminder=True, reminder_sent is not True,
+        and start_time falls within [now, window_end].
+        Returns raw dicts (not Task objects) so we can access user info easily.
+        """
+        try:
+            cursor = self.db[self.task_collection].find({
+                "reminder": True,
+                "reminder_sent": {"$ne": True},
+                "start_time": {
+                    "$gte": now,
+                    "$lte": window_end
+                }
+            })
+            return list(cursor)
+        except Exception as e:
+            logger.error(f"Error fetching upcoming reminder tasks: {e}")
+            return []
+
+    def mark_reminder_sent(self, task_id: str):
+        """Set reminder_sent=True on a task document to prevent duplicate emails."""
+        try:
+            self.db[self.task_collection].update_one(
+                {"_id": ObjectId(task_id)},
+                {"$set": {"reminder_sent": True}}
+            )
+            logger.info(f"Marked reminder_sent=True for task {task_id}")
+        except Exception as e:
+            logger.error(f"Error marking reminder sent for task {task_id}: {e}")
+

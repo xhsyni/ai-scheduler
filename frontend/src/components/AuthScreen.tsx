@@ -40,8 +40,8 @@ export function AuthScreen({ onAuthed }: { onAuthed: (name: string) => void }) {
       }
       if (mode === "login") {
         const result = await dispatch(loginUser({ email, password })).unwrap();
-        Cookies.set("access_token", result.access_token);
-        if (document.cookie.includes("access_token")) {
+        if (result.access_token) {
+          Cookies.set("access_token", result.access_token);
           toast.success("Signed in successfully!");
           onAuthed(email);
         }

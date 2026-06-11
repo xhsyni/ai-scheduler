@@ -5,6 +5,7 @@ import {
   LayoutDashboard, ListTodo, MessageSquare, PanelRightClose, PanelRightOpen,
   AlarmClock, Clock, Coffee, Plane, CheckCircle2, XCircle, Loader2,
   MapPin, BookOpen, Tag, ListChecks, CalendarRange, TimerReset,
+  ChevronDown, MessageCirclePlus,
 } from "lucide-react";
 import { CogniLogo } from "./CogniLogo";
 import { CalendarView, INITIAL_BLOCKS, type Block, type Category, type Priority } from "./CalendarView";
@@ -41,6 +42,8 @@ export function Dashboard({ name, onLogout }: { name: string; onLogout: () => vo
   const [workspace, setWorkspace] = useState<Workspace>("calendar");
   const [messages, setMessages] = useState<{ role: "user" | "ai"; text: string }[]>([]);
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
+  const [conversations, setConversations] = useState<any[]>([]);
+  const [showConvList, setShowConvList] = useState(false);
 
   const [dbTasks, setDbTasks] = useState<any[]>([]);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -49,6 +52,11 @@ export function Dashboard({ name, onLogout }: { name: string; onLogout: () => vo
   const [pulseIds, setPulseIds] = useState<Set<number>>(new Set());
 
   const [agentState, setAgentState] = useState<"idle" | "processing">("idle");
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, agentState, aiOpen]);
 
   const fetchTasks = async () => {
     try {
@@ -75,37 +83,75 @@ export function Dashboard({ name, onLogout }: { name: string; onLogout: () => vo
     }
   };
 
+  const loadConversationMessages = async (convId: string) => {
+    try {
+      setActiveConvId(convId);
+      const msgRes = await getMessages(convId);
+      if (msgRes.status === 200 && msgRes.messages && msgRes.messages.length > 0) {
+        const history = msgRes.messages.map((m: any) => ({
+          role: m.role === "assistant" ? ("ai" as const) : ("user" as const),
+          text: m.content || "",
+        }));
+        setMessages(history);
+      } else {
+        setMessages([
+          { role: "ai", text: `Hi ${name} 👋 Try asking me to schedule a study block or gym session.` }
+        ]);
+      }
+    } catch (err) {
+      console.error("Failed to load messages:", err);
+    }
+  };
+
   const initConversation = async () => {
     try {
       const res = await getConversations();
       let convId = null;
       if (res.status === 200 && res.conversations && res.conversations.length > 0) {
+        setConversations(res.conversations);
         convId = res.conversations[0].conversation_id;
       } else {
         const newConv = await createConversation("My Focus Session");
         if (newConv.status === 200) {
           convId = newConv.conversation_id;
+          setConversations([{ conversation_id: convId, title: "My Focus Session" }]);
         }
       }
 
       if (convId) {
-        setActiveConvId(convId);
-        const msgRes = await getMessages(convId);
-        if (msgRes.status === 200 && msgRes.messages && msgRes.messages.length > 0) {
-          const history = msgRes.messages.map((m: any) => ({
-            role: m.role === "assistant" ? ("ai" as const) : ("user" as const),
-            text: m.content || "",
-          }));
-          setMessages(history);
-        } else {
-          setMessages([
-            { role: "ai", text: `Hi ${name} 👋 Try asking me to schedule a study block or gym session.` }
-          ]);
-        }
+        await loadConversationMessages(convId);
       }
     } catch (err) {
       console.error("Failed to initialize conversation:", err);
     }
+  };
+
+  const handleNewConversation = async () => {
+    try {
+      const title = `Chat ${conversations.length + 1}`;
+      const newConv = await createConversation(title);
+      if (newConv.status === 200 && newConv.conversation_id) {
+        const newEntry = { conversation_id: newConv.conversation_id, title };
+        setConversations((prev) => [newEntry, ...prev]);
+        setActiveConvId(newConv.conversation_id);
+        setMessages([
+          { role: "ai", text: `Hi ${name} 👋 New chat started! What would you like to plan?` }
+        ]);
+        setShowConvList(false);
+      }
+    } catch (err) {
+      console.error("Failed to create conversation:", err);
+      toast.error("Failed to create new chat");
+    }
+  };
+
+  const switchConversation = async (convId: string) => {
+    if (convId === activeConvId) {
+      setShowConvList(false);
+      return;
+    }
+    await loadConversationMessages(convId);
+    setShowConvList(false);
   };
 
   useEffect(() => {
@@ -307,8 +353,8 @@ export function Dashboard({ name, onLogout }: { name: string; onLogout: () => vo
                   key={label}
                   onClick={() => setWorkspace(ws)}
                   className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm transition-colors ${active
-                      ? "bg-card text-foreground ring-1 ring-border"
-                      : "text-muted-foreground hover:text-foreground"
+                    ? "bg-card text-foreground ring-1 ring-border"
+                    : "text-muted-foreground hover:text-foreground"
                     }`}
                 >
                   <Icon size={15} /> {label}
@@ -400,9 +446,46 @@ export function Dashboard({ name, onLogout }: { name: string; onLogout: () => vo
                   </p>
                 </div>
               </div>
-              <button onClick={() => setAiOpen(false)} className="text-muted-foreground hover:text-foreground">
-                <PanelRightClose size={15} />
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={handleNewConversation}
+                  className="grid h-7 w-7 place-items-center rounded-lg border border-border bg-card/60 text-muted-foreground transition-colors hover:bg-card hover:text-foreground"
+                  title="New chat"
+                >
+                  <MessageCirclePlus size={14} />
+                </button>
+                <button onClick={() => setAiOpen(false)} className="text-muted-foreground hover:text-foreground">
+                  <PanelRightClose size={15} />
+                </button>
+              </div>
+            </div>
+
+            {/* Conversation switcher */}
+            <div className="relative mb-3">
+              <button
+                onClick={() => setShowConvList((v) => !v)}
+                className="flex w-full items-center justify-between rounded-lg border border-border bg-input/60 px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-input"
+              >
+                <span className="truncate">
+                  {conversations.find((c) => c.conversation_id === activeConvId)?.title || "Select chat"}
+                </span>
+                <ChevronDown size={13} className={`text-muted-foreground transition-transform ${showConvList ? "rotate-180" : ""}`} />
               </button>
+              {showConvList && (
+                <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-48 overflow-y-auto rounded-lg border border-border bg-card shadow-xl">
+                  {conversations.map((c) => (
+                    <button
+                      key={c.conversation_id}
+                      onClick={() => switchConversation(c.conversation_id)}
+                      className={`flex w-full items-center gap-2 px-3 py-2 text-left text-xs transition-colors hover:bg-input/60 ${c.conversation_id === activeConvId ? "bg-primary/10 text-primary font-semibold" : "text-foreground"
+                        }`}
+                    >
+                      <MessageSquare size={12} className="shrink-0 text-muted-foreground" />
+                      <span className="truncate">{c.title || "Untitled"}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="mb-3 grid grid-cols-2 gap-2">
@@ -411,7 +494,7 @@ export function Dashboard({ name, onLogout }: { name: string; onLogout: () => vo
             </div>
 
             {/* Scrollable middle: processing + chat */}
-            <div className="mb-3 flex-1 space-y-3 overflow-y-auto pr-1">
+            <div className="mb-3 flex-1 space-y-3 overflow-y-auto pr-1 ">
               {agentState === "processing" && (
                 <div className="rounded-xl border border-primary/40 bg-card/40 p-4">
                   <div className="flex items-center gap-2 text-xs">
@@ -438,6 +521,7 @@ export function Dashboard({ name, onLogout }: { name: string; onLogout: () => vo
                   {m.text}
                 </div>
               ))}
+              <div ref={chatEndRef} />
             </div>
 
             <div className="mb-2 flex flex-wrap gap-1.5">
@@ -556,7 +640,7 @@ function LeftPanel({ name, dbTasks = [], onNewPlan }: { name: string; dbTasks?: 
             reminders.map((r, i) => (
               <li key={i} className="group flex items-start gap-2.5 rounded-lg border border-transparent bg-card/40 p-2 hover:border-border">
                 <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-md ${r.tone === "primary" ? "bg-primary/15 text-primary" :
-                    r.tone === "accent" ? "bg-accent/15 text-accent" : "bg-muted text-muted-foreground"
+                  r.tone === "accent" ? "bg-accent/15 text-accent" : "bg-muted text-muted-foreground"
                   }`}>
                   <r.Icon size={13} />
                 </span>

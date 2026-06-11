@@ -38,6 +38,8 @@ import requests
 from google.oauth2 import service_account
 from google.auth.transport.requests import Request
 
+import google.auth
+
 KEY_PATH = os.path.join(
     os.path.dirname(__file__),
     "..",
@@ -60,10 +62,15 @@ BASE_URL = (
 
 
 def get_access_token():
-    credentials = service_account.Credentials.from_service_account_file(
-        KEY_PATH,
-        scopes=["https://www.googleapis.com/auth/cloud-platform"],
-    )
+    if os.path.exists(KEY_PATH):
+        credentials = service_account.Credentials.from_service_account_file(
+            KEY_PATH,
+            scopes=["https://www.googleapis.com/auth/cloud-platform"],
+        )
+    else:
+        credentials, project = google.auth.default(
+            scopes=["https://www.googleapis.com/auth/cloud-platform"]
+        )
     credentials.refresh(Request())
     return credentials.token
 

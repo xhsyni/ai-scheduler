@@ -53,6 +53,22 @@ export function Dashboard({ name, onLogout }: { name: string; onLogout: () => vo
 
   const [agentState, setAgentState] = useState<"idle" | "processing">("idle");
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (textarea) {
+      textarea.style.height = "auto";
+      textarea.style.height = `${Math.min(textarea.scrollHeight, 120)}px`;
+    }
+  }, [prompt]);
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendPrompt(e as unknown as React.FormEvent);
+    }
+  };
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -454,9 +470,6 @@ export function Dashboard({ name, onLogout }: { name: string; onLogout: () => vo
                 >
                   <MessageCirclePlus size={14} />
                 </button>
-                <button onClick={() => setAiOpen(false)} className="text-muted-foreground hover:text-foreground">
-                  <PanelRightClose size={15} />
-                </button>
               </div>
             </div>
 
@@ -464,7 +477,7 @@ export function Dashboard({ name, onLogout }: { name: string; onLogout: () => vo
             <div className="relative mb-3">
               <button
                 onClick={() => setShowConvList((v) => !v)}
-                className="flex w-full items-center justify-between rounded-lg border border-border bg-input/60 px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-input"
+                className="flex w-full items-center justify-between rounded-lg border border-border bg-input px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-input"
               >
                 <span className="truncate">
                   {conversations.find((c) => c.conversation_id === activeConvId)?.title || "Select chat"}
@@ -472,7 +485,7 @@ export function Dashboard({ name, onLogout }: { name: string; onLogout: () => vo
                 <ChevronDown size={13} className={`text-muted-foreground transition-transform ${showConvList ? "rotate-180" : ""}`} />
               </button>
               {showConvList && (
-                <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-48 overflow-y-auto rounded-lg border border-border bg-card shadow-xl">
+                <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-48 overflow-y-auto rounded-lg border border-border bg-[#151821] shadow-xl">
                   {conversations.map((c) => (
                     <button
                       key={c.conversation_id}
@@ -488,29 +501,24 @@ export function Dashboard({ name, onLogout }: { name: string; onLogout: () => vo
               )}
             </div>
 
-            <div className="mb-3 grid grid-cols-2 gap-2">
-              <MiniStat Icon={Zap} label="Focus" value={`${focusHours.toFixed(1)}h`} />
-              <MiniStat Icon={TrendingUp} label="Energy" value="86" />
-            </div>
-
-            {/* Scrollable middle: processing + chat */}
-            <div className="mb-3 flex-1 space-y-3 overflow-y-auto pr-1 ">
-              {agentState === "processing" && (
-                <div className="rounded-xl border border-primary/40 bg-card/40 p-4">
-                  <div className="flex items-center gap-2 text-xs">
-                    <Loader2 size={14} className="animate-spin text-primary" />
-                    <span className="font-semibold">Processing prompt</span>
-                  </div>
-                  <div className="mt-3 space-y-1.5">
-                    {["Parsing intent…", "Tagging categories…", "Scanning free slots…"].map((s, i) => (
-                      <div key={s} className="flex items-center gap-2 text-[11px] text-muted-foreground" style={{ animation: `pulse 1.2s ${i * 0.3}s infinite` }}>
-                        <span className="h-1 w-1 rounded-full bg-primary" /> {s}
-                      </div>
-                    ))}
-                  </div>
+            {agentState === "processing" && (
+              <div className="mb-3 rounded-xl border border-primary/40 bg-card/40 p-3">
+                <div className="flex items-center gap-2 text-xs">
+                  <Loader2 size={14} className="animate-spin text-primary" />
+                  <span className="font-semibold">Processing prompt...</span>
                 </div>
-              )}
+                <div className="mt-2.5 flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-muted-foreground">
+                  {["Parsing intent…", "Tagging categories…", "Scanning free slots…"].map((s, i) => (
+                    <div key={s} className="flex items-center gap-1.5" style={{ animation: `pulse 1.2s ${i * 0.3}s infinite` }}>
+                      <span className="h-1 w-1 rounded-full bg-primary" /> {s}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
+            {/* Scrollable middle: chat history */}
+            <div className="mb-3 flex-1 space-y-3 overflow-y-auto pr-1 ">
               {/* Chat history */}
               {messages.map((m, i) => (
                 <div
@@ -536,17 +544,32 @@ export function Dashboard({ name, onLogout }: { name: string; onLogout: () => vo
               ))}
             </div>
 
-            <form onSubmit={sendPrompt} className="flex items-center gap-2 rounded-xl border border-border bg-input/60 p-1.5 focus-within:border-primary">
-              <MessageSquare size={14} className="ml-2 text-muted-foreground" />
-              <input
-                value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-                placeholder="Ask CogniPlan…"
-                className="flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground"
-              />
-              <button type="submit" className="grid h-7 w-7 place-items-center rounded-lg bg-gradient-primary text-primary-foreground">
-                <Send size={12} />
-              </button>
+            <form onSubmit={sendPrompt} className="relative flex flex-col gap-1.5 rounded-xl border border-border bg-input/60 p-2 focus-within:border-primary transition-all">
+              <div className="flex items-start gap-2">
+                <MessageSquare size={14} className="mt-2 ml-1 text-muted-foreground shrink-0" />
+                <textarea
+                  ref={textareaRef}
+                  value={prompt}
+                  onChange={(e) => setPrompt(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Ask CogniPlan… (Press Enter to send, Shift+Enter for new line)"
+                  rows={1}
+                  className="flex-1 resize-none bg-transparent py-1 text-xs outline-none placeholder:text-muted-foreground min-h-[28px] max-h-[120px] overflow-y-auto"
+                />
+              </div>
+              <div className="flex items-center justify-between border-t border-border/40 pt-1.5 mt-1">
+                <span className="text-[9px] text-muted-foreground pl-1">
+                  {prompt.length > 0 && `${prompt.length} chars`}
+                </span>
+                <button
+                  type="submit"
+                  disabled={!prompt.trim() || agentState === "processing"}
+                  className="flex h-7 px-3 items-center gap-1.5 rounded-lg bg-gradient-primary text-primary-foreground text-xs font-semibold shadow-glow transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none"
+                >
+                  <span>Send</span>
+                  <Send size={10} />
+                </button>
+              </div>
             </form>
           </div>
         </aside>

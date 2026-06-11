@@ -8,7 +8,9 @@ from services.tools import register_mcp_tools
 from services.scheduler import weekly_memory_updater_loop, reminder_check_loop
 from fastapi.middleware.cors import CORSMiddleware
 
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = os.path.join(os.path.dirname(__file__), "gcp-key.json")
+key_path = os.path.join(os.path.dirname(__file__), "gcp-key.json")
+if os.path.exists(key_path):
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = key_path
 
 print("VERTEX:", os.getenv("GOOGLE_GENAI_USE_VERTEXAI"))
 print("PROJECT:", os.getenv("GOOGLE_CLOUD_PROJECT"))

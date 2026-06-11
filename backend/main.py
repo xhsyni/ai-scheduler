@@ -54,7 +54,10 @@ app = FastAPI(lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-    "http://localhost:8080",
+        "https://ai-scheduler-l5y5xyk44-xhsynis-projects.vercel.app",
+        "https://cogniplan-scheduler.xhsync.com",
+        "http://localhost:8080",
+        "http://localhost:3000",
     ],
     allow_credentials=True,
     allow_methods=["*"],
